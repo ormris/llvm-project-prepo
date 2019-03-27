@@ -562,6 +562,9 @@ RepoObjectWriter::toPstoreLinkage(GlobalValue::LinkageTypes L) {
     return pstore::repo::linkage_type::external;
   case GlobalValue::LinkOnceAnyLinkage:
   case GlobalValue::LinkOnceODRLinkage:
+  // TODO: WeakAnyLinkage implements as linkonce for now to allow LLVM to build
+  // correctly. Implement support for weak linkage in the future.
+  case GlobalValue::WeakAnyLinkage:
   case GlobalValue::WeakODRLinkage:
     return pstore::repo::linkage_type::linkonce;
   case GlobalValue::PrivateLinkage:
