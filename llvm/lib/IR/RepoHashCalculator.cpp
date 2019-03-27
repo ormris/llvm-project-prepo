@@ -610,7 +610,11 @@ void VariableHashCalculator::hashVariable() {
   // Global variable is constant type. Accumulate the initial value.
   // This accumulation also cover the "llvm.global_ctors",
   // "llvm.global_dtors", "llvm.used" and "llvm.compiler.used" cases.
-  GvHash.hashConstant((Gv->hasDefinitiveInitializer())
+  // If the weak global variable is initialized to another global variable, the
+  // weak data should belong to .data section and has a XFixup to that global
+  // data. The hash value should also accumulate the initial value of the weak
+  // global value.
+  GvHash.hashConstant((Gv->hasInitializer())
                           ? Gv->getInitializer()
                           : Constant::getNullValue(Gv->getValueType()));
 }
