@@ -1,3 +1,9 @@
+# Add a option to disable the dynamic library unittests. This is temporary solution
+# for bug 12 <https://github.com/SNSystems/llvm-project-prepo/issues/12>.
+# Once the bug 12 is fixed, the option 'LLVM_DISABLE_DYNAMIC_LIBRARY_UNITTEST'
+# will be removed.
+option (LLVM_DISABLE_DYNAMIC_LIBRARY_UNITTEST "Disable dynamic library unittests")
+
 set(LLVM_LINK_COMPONENTS
   Support
   )
@@ -88,4 +94,6 @@ set_source_files_properties(AlignOfTest.cpp PROPERTIES COMPILE_FLAGS -w)
 # ManagedStatic.cpp uses <pthread>.
 target_link_libraries(SupportTests PRIVATE LLVMTestingSupport ${LLVM_PTHREAD_LIB})
 
-add_subdirectory(DynamicLibrary)
+if (NOT LLVM_DISABLE_DYNAMIC_LIBRARY_UNITTEST)
+    add_subdirectory(DynamicLibrary)
+endif ()
