@@ -307,7 +307,7 @@ TEST_F(VariableHash, CheckSourceFile) {
 TEST_F(VariableHash, CheckLinkage) {
   GV0->setLinkage(GlobalValue::ExternalLinkage);
   GV1->setLinkage(GlobalValue::InternalLinkage);
-  EXPECT_TRUE(isEqualHash());
+  EXPECT_FALSE(isEqualHash());
 }
 
 // The alignment will affect the hash value.

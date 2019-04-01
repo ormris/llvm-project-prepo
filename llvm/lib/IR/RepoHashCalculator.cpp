@@ -617,6 +617,13 @@ void VariableHashCalculator::hashVariable() {
   GvHash.hashConstant((Gv->hasInitializer())
                           ? Gv->getInitializer()
                           : Constant::getNullValue(Gv->getValueType()));
+  // If global variable has a local linkage type, it is only visible to the
+  // current compilation. This GV can't be accessed by other compilations.
+  // Accumulate the file name to the internal GV's hash.
+  if (Gv->hasLocalLinkage()) {
+    GvHash.hashMem(
+        llvm::sys::path::filename(Gv->getParent()->getSourceFileName()));
+  }
 }
 
 // Calculate the global Variable hash value.
