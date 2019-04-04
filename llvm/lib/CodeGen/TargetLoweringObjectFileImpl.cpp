@@ -852,7 +852,15 @@ MCSection *TargetLoweringObjectFileRepo::createXXtorsSection(MCContext &Ctx,
                      return P->getNameAsString() == Name;
                    });
   if (CtorsPos == End) {
+    if (Name == "llvm.global_ctors") {
+      // Set CtorsTicketNode to nullptr if llvm.global_ctors does not exist.
+      Ctx.setGlobalCtorsVarible(nullptr);
+    }
     return nullptr;
+  }
+  if (Name == "llvm.global_ctors") {
+    // Set CtorsTicketNode to CtorsPos.
+    Ctx.setGlobalCtorsVarible(*CtorsPos);
   }
   return Ctx.getRepoSection(MCContext::RepoSection::ReadOnlySection,
                             (*CtorsPos)->getNameAsString(),

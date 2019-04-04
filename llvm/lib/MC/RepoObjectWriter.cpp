@@ -163,10 +163,12 @@ public:
                 const ModuleNamesContainer &Names,
                 NamesWithPrefixContainer &Symbols);
 
-  pstore::index::digest buildCompilationRecord(
-      const pstore::database &Db, const MCAssembler &Asm,
-      ModuleNamesContainer &Names, NamesWithPrefixContainer &Symbols,
-      const ContentsType &Fragments, StringRef OutputFile, StringRef Triple);
+  pstore::index::digest
+  buildCompilationRecord(const pstore::database &Db, const MCAssembler &Asm,
+                         ModuleNamesContainer &Names,
+                         NamesWithPrefixContainer &Symbols,
+                         const ContentsType &Fragments, StringRef OutputFile,
+                         StringRef Triple, bool hasCtorsInSecs);
 
   static pstore::repo::linkage_type
   toPstoreLinkage(GlobalValue::LinkageTypes L);
@@ -640,7 +642,8 @@ template <typename T> ArrayRef<std::uint8_t> makeByteArrayRef(T const &Value) {
 pstore::index::digest RepoObjectWriter::buildCompilationRecord(
     const pstore::database &Db, const MCAssembler &Asm,
     ModuleNamesContainer &Names, NamesWithPrefixContainer &Symbols,
-    const ContentsType &Fragments, StringRef OutputFile, StringRef Triple) {
+    const ContentsType &Fragments, StringRef OutputFile, StringRef Triple,
+    bool hasCtorsInSecs) {
   MD5 CompilationHash;
 
   CompilationHash.update(OutputFile.size());
@@ -652,6 +655,11 @@ pstore::index::digest RepoObjectWriter::buildCompilationRecord(
   auto Tickets = Asm.getContext().getTickets();
   CompilationMembers.reserve(Tickets.size());
   for (const auto Symbol : Tickets) {
+    // Don't emit llvm.global_ctors if it is a fake fragment.
+    if (Symbol->getNameAsString() == "llvm.global_ctors" && !hasCtorsInSecs &&
+        Symbol->getLinkage() != GlobalValue::AppendingLinkage) {
+      continue;
+    }
     ticketmd::DigestType const D = Symbol->getDigest();
     // Insert this name into the module-wide string set. This set is later
     // added to the whole-program string set and the ticket name addresses
@@ -830,6 +838,7 @@ RepoObjectWriter::writeDebugLineHeader(TransactionType &Transaction,
 uint64_t RepoObjectWriter::writeObject(MCAssembler &Asm,
                                        const MCAsmLayout &Layout) {
   uint64_t StartOffset = W.OS.tell();
+  bool hasCtorsInSecs = false;
 
   ContentsType Fragments;
   ModuleNamesContainer Names;
@@ -850,12 +859,17 @@ uint64_t RepoObjectWriter::writeObject(MCAssembler &Asm,
   for (MCSection &Sec : Asm) {
     auto &Section = static_cast<MCSectionRepo &>(Sec);
     writeSectionData(Fragments, Asm, Section, Layout, Names);
+    if (Section.getName() == "llvm.global_ctors") {
+      LLVM_DEBUG(dbgs() << "This module contains llvm.global_ctors!\n");
+      hasCtorsInSecs = true;
+    }
   }
 
   pstore::database &Db = llvm::getRepoDatabase();
   NamesWithPrefixContainer PrefixedNames;
-  pstore::index::digest TicketDigest = buildCompilationRecord(
-      Db, Asm, Names, PrefixedNames, Fragments, OutputFile, TripleStr);
+  pstore::index::digest TicketDigest =
+      buildCompilationRecord(Db, Asm, Names, PrefixedNames, Fragments,
+                             OutputFile, TripleStr, hasCtorsInSecs);
 
   buildDependents(Fragments, CompilationMembers);
 
@@ -946,6 +960,35 @@ uint64_t RepoObjectWriter::writeObject(MCAssembler &Asm,
             pstore::repo::fragment::alloc(Transaction, Begin, End);
         RepoFragments[Key] = Extent;
         FragmentsIndex->insert(Transaction, std::make_pair(Key, Extent));
+      }
+
+      // If Module contains llvm.global_ctors but it is removed after global
+      // variable optimizer, a fake llvm.global_ctors fragment is added into the
+      // repository to avoid the pruning issue.
+      auto CtorsTicketNode = Asm.getContext().getGlobalCtorsVarible();
+      if (!hasCtorsInSecs && CtorsTicketNode != nullptr) {
+        ticketmd::DigestType const Digest = CtorsTicketNode->getDigest();
+        auto const Key = pstore::index::digest{Digest.high(), Digest.low()};
+
+        if (FragmentsIndex->find(Db, Key) == FragmentsIndex->end(Db)) {
+          LLVM_DEBUG(dbgs()
+                     << "Adding a fake fragment llvm.global_ctors with Key"
+                     << Key << '\n');
+          auto Content = make_unique<pstore::repo::section_content>(
+              pstore::repo::section_kind::read_only, std::uint8_t{8});
+          std::vector<
+              std::unique_ptr<pstore::repo::section_creation_dispatcher>>
+              dispatchers;
+          dispatchers.emplace_back(
+              new pstore::repo::generic_section_creation_dispatcher(
+                  Content->kind, Content.get()));
+          auto const Extent = pstore::repo::fragment::alloc(
+              Transaction, pstore::make_pointee_adaptor(dispatchers.begin()),
+              pstore::make_pointee_adaptor(dispatchers.end()));
+          LLVM_DEBUG(dbgs() << "Extent addr ( " << Extent.addr.absolute()
+                            << " ) and size ( " << Extent.size << " )\n");
+          FragmentsIndex->insert(Transaction, std::make_pair(Key, Extent));
+        }
       }
 
       // Find the store address of the output file path.

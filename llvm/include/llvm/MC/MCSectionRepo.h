@@ -60,6 +60,7 @@ public:
   bool isDummy () const { return IsDummy; }
   ticketmd::DigestType hash() const { return Digest; }
   DebugSectionKind getDebugKind() const { return DebugKind; }
+  StringRef getName() const { return Name; }
   MCSection *associatedDebugLineSection(MCContext &) override;
 
   static bool classof(const MCSection *S) { return S->getVariant() == SV_Repo; }

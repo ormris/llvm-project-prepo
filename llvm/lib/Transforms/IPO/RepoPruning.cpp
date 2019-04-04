@@ -212,6 +212,25 @@ bool RepoPruning::runOnModule(Module &M) {
         dyn_cast<TicketNode>(GO.getMetadata(LLVMContext::MD_repo_ticket));
     MD->setPruned(true);
 
+    // If llvm.global_ctors is removed after global variable optimizer, a fake
+    // llvm.global_ctors fragment is added into the repository. If
+    // llvm.global_ctors is a fake fragment, it will not be emitted to the
+    // object file by changing its linkage type from appendng to external.
+    if (GO.getName() == "llvm.global_ctors") {
+      auto It = Fragments->find(Repository, Key);
+      std::shared_ptr<const pstore::repo::fragment> Fragment =
+          pstore::repo::fragment::load(Repository, It->second);
+      auto ReadOnlySection =
+          Fragment->atp<pstore::repo::section_kind::read_only>();
+      assert(ReadOnlySection);
+      if (ReadOnlySection->data().size() == 0) {
+        LLVM_DEBUG(dbgs() << "llvm.global_ctors is a fake fragment! " << '\n');
+        MD->setLinkage(GlobalValue::ExternalLinkage);
+      } else {
+        LLVM_DEBUG(dbgs() << "llvm.global_ctors is a real fragment! " << '\n');
+      }
+    }
+
     if (isSafeToPruneIntrinsicGV(GO)) {
       // Change Intrinsic GV from definition to declaration.
       GO.clearMetadata();

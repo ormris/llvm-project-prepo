@@ -209,6 +209,9 @@ public:
   GlobalValue::LinkageTypes getLinkage() const {
     return static_cast<GlobalValue::LinkageTypes>(SubclassData32);
   }
+  void setLinkage(GlobalValue::LinkageTypes Linkage) {
+    SubclassData32 = static_cast<unsigned>(Linkage);
+  }
 
   bool getPruned() const { return static_cast<bool>(SubclassData16); }
   void setPruned(bool Value) {

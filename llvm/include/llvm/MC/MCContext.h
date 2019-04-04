@@ -288,6 +288,11 @@ namespace llvm {
 
     RepoTicketContainer TicketNodes;
 
+    /// If Module contains the global variable of llvm.global_ctors, set
+    /// CtorsTicketNode to the llvm.global_ctors TiketNode. Otherwise, set to
+    /// nullptr.
+    TicketNode *CtorsTicketNode = nullptr;
+
     SpecificBumpPtrAllocator<MCSubtargetInfo> MCSubtargetAllocator;
 
     /// Do automatic reset in destructor
@@ -407,6 +412,14 @@ namespace llvm {
 
     /// getTickets - Get a reference for the ticket table.
     const RepoTicketContainer &getTickets() const { return TicketNodes; }
+
+    /// Set CtorsTicketNode to the global variable llvm.global_ctors.
+    void setGlobalCtorsVarible(TicketNode *const Node) {
+      CtorsTicketNode = Node;
+    }
+
+    /// Return the TicketNode of the global variable llvm.global_ctors.
+    TicketNode *getGlobalCtorsVarible() const { return CtorsTicketNode; }
 
     /// @}
 
