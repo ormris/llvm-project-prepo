@@ -649,9 +649,13 @@ pstore::index::digest RepoObjectWriter::buildCompilationRecord(
   CompilationHash.update(Triple.size());
   CompilationHash.update(Triple);
 
+  // Only record all compilation members one time.
+  DenseSet<TicketNode *> SeenCompilationMembers;
   auto Tickets = Asm.getContext().getTickets();
   CompilationMembers.reserve(Tickets.size());
   for (const auto Symbol : Tickets) {
+    if (!SeenCompilationMembers.insert(Symbol).second)
+      continue;
     ticketmd::DigestType const D = Symbol->getDigest();
     // Insert this name into the module-wide string set. This set is later
     // added to the whole-program string set and the ticket name addresses
