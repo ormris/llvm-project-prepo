@@ -12,6 +12,7 @@
 #include "pstore/core/index_types.hpp"
 #include "pstore/mcrepo/fragment.hpp"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/MDBuilder.h"
@@ -105,6 +106,42 @@ ticketmd::DigestType toDigestType(pstore::index::digest D) {
   return Digest;
 }
 
+static void addDependentFragments(
+    Module &M, StringSet<> &DependentFragments,
+    std::shared_ptr<const pstore::index::fragment_index> const &Fragments,
+    const pstore::database &Repository, pstore::index::digest const &Digest) {
+
+  auto It = Fragments->find(Repository, Digest);
+  assert(It != Fragments->end(Repository));
+  // Create  the dependent fragments if existing in the repository.
+  auto Fragment = pstore::repo::fragment::load(Repository, It->second);
+  if (auto Dependents =
+          Fragment->atp<pstore::repo::section_kind::dependent>()) {
+    for (pstore::typed_address<pstore::repo::compilation_member> Dependent :
+         *Dependents) {
+      auto CM = pstore::repo::compilation_member::load(Repository, Dependent);
+      StringRef MDName =
+          toStringRef(pstore::get_sstring_view(Repository, CM->name).second);
+      LLVM_DEBUG(dbgs() << "    Prunning dependent name: " << MDName << '\n');
+      auto DMD =
+          TicketNode::get(M.getContext(), MDName, toDigestType(CM->digest),
+                          toGVLinkage(CM->linkage), true);
+      // If functions 'A' and 'B' are dependent on function 'C', only add a
+      // single TicketNode of 'C' to the 'repo.tickets' in order to avoid
+      // multiple compilation_members of function 'C' in the compilation.
+      if (DependentFragments.insert(MDName).second) {
+        NamedMDNode *const NMD = M.getOrInsertNamedMetadata("repo.tickets");
+        assert(NMD && "NamedMDNode cannot be NULL!");
+        NMD->addOperand(DMD);
+        // If this dependent fragment 'DMD' exists dependents, add the
+        // dependents to the repository.
+        addDependentFragments(M, DependentFragments, Fragments, Repository,
+                              CM->digest);
+      }
+    }
+  }
+}
+
 bool RepoPruning::runOnModule(Module &M) {
   if (skipModule(M) || !isObjFormatRepo(M))
     return false;
@@ -122,11 +159,12 @@ bool RepoPruning::runOnModule(Module &M) {
   }
 
   std::map<pstore::index::digest, const GlobalObject *> ModuleFragments;
+  StringSet<> DependentFragments; // Record all dependents.
 
   // Erase the unchanged global objects.
-  auto EraseUnchangedGlobalObject = [&ModuleFragments, &Fragments, &Repository,
-                                     &M](GlobalObject &GO,
-                                         llvm::Statistic &NumGO) -> bool {
+  auto EraseUnchangedGlobalObject =
+      [&ModuleFragments, &Fragments, &Repository, &M,
+       &DependentFragments](GlobalObject &GO, llvm::Statistic &NumGO) -> bool {
     if (GO.isDeclaration() || GO.hasAvailableExternallyLinkage() ||
         !isSafeToPrune(GO))
       return false;
@@ -143,37 +181,25 @@ bool RepoPruning::runOnModule(Module &M) {
     } else {
       auto It = Fragments->find(Repository, Key);
       if (It == Fragments->end(Repository)) {
+        LLVM_DEBUG(dbgs() << "New GO name: " << GO.getName() << '\n');
         InRepository = false;
       } else {
-        // Create  the dependent fragments if existing in the repository.
-        auto Fragment = pstore::repo::fragment::load(Repository, It->second);
-        if (auto Dependents =
-                Fragment->atp<pstore::repo::section_kind::dependent>()) {
-          for (pstore::typed_address<pstore::repo::compilation_member>
-                   Dependent : *Dependents) {
-            auto CM =
-                pstore::repo::compilation_member::load(Repository, Dependent);
-            StringRef MDName = toStringRef(
-                pstore::get_sstring_view(Repository, CM->name).second);
-            auto DMD = TicketNode::get(M.getContext(), MDName,
-                                       toDigestType(CM->digest),
-                                       toGVLinkage(CM->linkage), true);
-            NamedMDNode *const NMD = M.getOrInsertNamedMetadata("repo.tickets");
-            assert(NMD && "NamedMDNode cannot be NULL!");
-            NMD->addOperand(DMD);
-          }
-        }
+        LLVM_DEBUG(dbgs() << "Prunning GO name: " << GO.getName() << '\n');
+        addDependentFragments(M, DependentFragments, Fragments, Repository,
+                              Key);
       }
     }
 
     if (!InRepository) {
       auto It = ModuleFragments.find(Key);
-      // The definition of some global objects may be discarded if not used. If
-      // a global has been pruned and its digest matches a discardable GO, a
-      // missing fragment error might be met during the assembler. To avoid this
-      // issue, this global object can't be pruned if the referenced global
-      // object is discardable.
+      // The definition of some global objects may be discarded if not used.
+      // If a global has been pruned and its digest matches a discardable GO,
+      // a missing fragment error might be met during the assembler. To avoid
+      // this issue, this global object can't be pruned if the referenced
+      // global object is discardable.
       if (It == ModuleFragments.end() || It->second->isDiscardableIfUnused()) {
+        LLVM_DEBUG(dbgs() << "Putting GO name into ModuleFragments: "
+                          << GO.getName() << '\n');
         ModuleFragments.emplace(Key, &GO);
         return false;
       }
