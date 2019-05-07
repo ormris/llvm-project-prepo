@@ -33,6 +33,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/RepoTicket.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
@@ -124,6 +125,30 @@ isSimpleEnoughValueToCommit(Constant *C,
   return isSimpleEnoughValueToCommitHelper(C, SimpleConstants, DL);
 }
 
+static bool wasPruned(const GlobalVariable &GV) {
+  if (const GlobalObject *const GO = GV.getBaseObject()) {
+    if (const MDNode *const T = GO->getMetadata(LLVMContext::MD_repo_ticket)) {
+      if (const TicketNode *const MD = dyn_cast<TicketNode>(T)) {
+        return MD->getPruned();
+      }
+    }
+  }
+  return false;
+}
+
+static GlobalValue::LinkageTypes getOriginalLinkage(const GlobalVariable &GV,
+                                                    bool WasPruned) {
+  if (WasPruned) {
+    assert(GV.getBaseObject() != nullptr);
+    assert(GV.getBaseObject()->getMetadata(LLVMContext::MD_repo_ticket) !=
+           nullptr);
+    return (dyn_cast<TicketNode>(
+                GV.getBaseObject()->getMetadata(LLVMContext::MD_repo_ticket)))
+        ->getLinkage();
+  }
+  return GV.getLinkage();
+}
+
 /// Return true if this constant is simple enough for us to understand.  In
 /// particular, if it is a cast to anything other than from one pointer type to
 /// another pointer type, we punt.  We basically just support direct accesses to
@@ -145,10 +170,21 @@ static bool isSimpleEnoughPointerToCommit(Constant *C) {
         isa<GlobalVariable>(CE->getOperand(0)) &&
         cast<GEPOperator>(CE)->isInBounds()) {
       GlobalVariable *GV = cast<GlobalVariable>(CE->getOperand(0));
+      bool WasPruned = wasPruned(*GV);
+      GlobalValue::LinkageTypes InitialLinkage =
+          getOriginalLinkage(*GV, WasPruned);
       // Do not allow weak/*_odr/linkonce/dllimport/dllexport linkage or
       // external globals.
-      if (!GV->hasUniqueInitializer())
-        return false;
+      if (WasPruned) {
+        if (GlobalValue::isAvailableExternallyLinkage(InitialLinkage) ||
+            GlobalValue::isWeakForLinker(InitialLinkage) ||
+            GV->isExternallyInitialized() ||
+            GlobalValue::isExternalLinkage(GV->getLinkage()))
+          return false;
+      } else {
+        if (!GV->hasUniqueInitializer())
+          return false;
+      }
 
       // The first index must be zero.
       ConstantInt *CI = dyn_cast<ConstantInt>(*std::next(CE->op_begin()));
