@@ -49,6 +49,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/RepoHashCalculator.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
@@ -1901,6 +1902,16 @@ static void makeAllConstantUsesInstructions(Constant *C) {
   }
 }
 
+/// Reset the global varible GV TicketNode metadata.
+static void calculateGlobalDigest(GlobalVariable *GV) {
+  if (!GV->getMetadata(LLVMContext::MD_repo_ticket))
+    return;
+  VariableHashCalculator GVHC{GV};
+  GVHC.calculateHash();
+  ticketmd::set(GV, GVHC.getHashResult());
+  return;
+}
+
 /// Analyze the specified global variable and optimize
 /// it if possible.  If we make a change, return true.
 static bool processInternalGlobal(
@@ -2001,6 +2012,8 @@ static bool processInternalGlobal(
       if (isa<UndefValue>(GV->getInitializer())) {
         // Change the initial value here.
         GV->setInitializer(SOVConstant);
+        // Change the GV digest value.
+        calculateGlobalDigest(GV);
 
         // Clean up any obviously simplifiable users now.
         CleanupConstantGlobalUsers(GV, GV->getInitializer(), DL, TLI);
@@ -2338,8 +2351,11 @@ OptimizeGlobalVars(Module &M, TargetLibraryInfo *TLI,
       if (auto *C = dyn_cast<Constant>(GV->getInitializer())) {
         auto &DL = M.getDataLayout();
         Constant *New = ConstantFoldConstant(C, DL, TLI);
-        if (New && New != C)
+        if (New && New != C) {
           GV->setInitializer(New);
+          // Change the GV digest value.
+          calculateGlobalDigest(GV);
+        }
       }
 
     if (deleteIfDead(*GV, NotDiscardableComdats)) {
@@ -2402,12 +2418,17 @@ static void CommitValueTo(Constant *Val, Constant *Addr) {
   if (GlobalVariable *GV = dyn_cast<GlobalVariable>(Addr)) {
     assert(GV->hasInitializer());
     GV->setInitializer(Val);
+    // Change the GV digest value.
+    calculateGlobalDigest(GV);
     return;
   }
 
   ConstantExpr *CE = cast<ConstantExpr>(Addr);
   GlobalVariable *GV = cast<GlobalVariable>(CE->getOperand(0));
-  GV->setInitializer(EvaluateStoreInto(GV->getInitializer(), Val, CE, 2));
+  auto NewVal = EvaluateStoreInto(GV->getInitializer(), Val, CE, 2);
+  GV->setInitializer(NewVal);
+  // Change the GV digest value.
+  calculateGlobalDigest(GV);
 }
 
 /// Given a map of address -> value, where addresses are expected to be some form
@@ -2478,6 +2499,8 @@ static void BatchCommitValueTo(const DenseMap<Constant*, Constant*> &Mem) {
   for (auto GVPair : GVs) {
     assert(GVPair.first->hasInitializer());
     GVPair.first->setInitializer(GVPair.second);
+    // Change the GV digest value.
+    calculateGlobalDigest(GVPair.first);
   }
 
   if (SimpleCEs.empty())
@@ -2505,6 +2528,8 @@ static void BatchCommitValueTo(const DenseMap<Constant*, Constant*> &Mem) {
           CurrentGV->setInitializer(ConstantArray::get(ArrTy, Elts));
         else
           CurrentGV->setInitializer(ConstantVector::get(Elts));
+        // Change the GV digest value.
+        calculateGlobalDigest(CurrentGV);
       }
       if (CurrentGV == GV)
         return;
