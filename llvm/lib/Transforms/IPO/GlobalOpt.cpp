@@ -1904,12 +1904,20 @@ static void makeAllConstantUsesInstructions(Constant *C) {
 
 /// Reset the global varible GV TicketNode metadata.
 static void calculateGlobalDigest(GlobalVariable *GV) {
-  if (!GV->getMetadata(LLVMContext::MD_repo_ticket))
+  const Module *const M = GV->getParent();
+  if (!M)
     return;
+
+  const std::string TripleString = M->getTargetTriple();
+  if (TripleString.empty())
+    return;
+
+  if (!Triple(TripleString).isOSBinFormatRepo())
+    return;
+
   VariableHashCalculator GVHC{GV};
   GVHC.calculateHash();
   ticketmd::set(GV, GVHC.getHashResult());
-  return;
 }
 
 /// Analyze the specified global variable and optimize
@@ -2012,7 +2020,7 @@ static bool processInternalGlobal(
       if (isa<UndefValue>(GV->getInitializer())) {
         // Change the initial value here.
         GV->setInitializer(SOVConstant);
-        // Change the GV digest value.
+        // If the buid is targeted on Repo, change the GV digest value.
         calculateGlobalDigest(GV);
 
         // Clean up any obviously simplifiable users now.
@@ -2353,7 +2361,7 @@ OptimizeGlobalVars(Module &M, TargetLibraryInfo *TLI,
         Constant *New = ConstantFoldConstant(C, DL, TLI);
         if (New && New != C) {
           GV->setInitializer(New);
-          // Change the GV digest value.
+          // If the buid is targeted on Repo, change the GV digest value.
           calculateGlobalDigest(GV);
         }
       }
@@ -2418,7 +2426,7 @@ static void CommitValueTo(Constant *Val, Constant *Addr) {
   if (GlobalVariable *GV = dyn_cast<GlobalVariable>(Addr)) {
     assert(GV->hasInitializer());
     GV->setInitializer(Val);
-    // Change the GV digest value.
+    // If the buid is targeted on Repo, change the GV digest value.
     calculateGlobalDigest(GV);
     return;
   }
@@ -2427,7 +2435,7 @@ static void CommitValueTo(Constant *Val, Constant *Addr) {
   GlobalVariable *GV = cast<GlobalVariable>(CE->getOperand(0));
   auto NewVal = EvaluateStoreInto(GV->getInitializer(), Val, CE, 2);
   GV->setInitializer(NewVal);
-  // Change the GV digest value.
+  // If the buid is targeted on Repo, change the GV digest value.
   calculateGlobalDigest(GV);
 }
 
@@ -2499,7 +2507,7 @@ static void BatchCommitValueTo(const DenseMap<Constant*, Constant*> &Mem) {
   for (auto GVPair : GVs) {
     assert(GVPair.first->hasInitializer());
     GVPair.first->setInitializer(GVPair.second);
-    // Change the GV digest value.
+    // If the buid is targeted on Repo, change the GV digest value.
     calculateGlobalDigest(GVPair.first);
   }
 
@@ -2528,7 +2536,7 @@ static void BatchCommitValueTo(const DenseMap<Constant*, Constant*> &Mem) {
           CurrentGV->setInitializer(ConstantArray::get(ArrTy, Elts));
         else
           CurrentGV->setInitializer(ConstantVector::get(Elts));
-        // Change the GV digest value.
+        // If the buid is targeted on Repo, change the GV digest value.
         calculateGlobalDigest(CurrentGV);
       }
       if (CurrentGV == GV)
