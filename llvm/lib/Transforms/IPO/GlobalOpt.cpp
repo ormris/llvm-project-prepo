@@ -1902,19 +1902,15 @@ static void makeAllConstantUsesInstructions(Constant *C) {
   }
 }
 
+static bool IsRepo = false;
+
+/// Tests whether we're producing output for a Program Repository.
+static bool isObjFormatRepo(Module &M) {
+  return Triple(M.getTargetTriple()).isOSBinFormatRepo();
+}
+
 /// Reset the global varible GV TicketNode metadata.
 static void calculateGlobalDigest(GlobalVariable *GV) {
-  const Module *const M = GV->getParent();
-  if (!M)
-    return;
-
-  const std::string TripleString = M->getTargetTriple();
-  if (TripleString.empty())
-    return;
-
-  if (!Triple(TripleString).isOSBinFormatRepo())
-    return;
-
   VariableHashCalculator GVHC{GV};
   GVHC.calculateHash();
   ticketmd::set(GV, GVHC.getHashResult());
@@ -2021,7 +2017,8 @@ static bool processInternalGlobal(
         // Change the initial value here.
         GV->setInitializer(SOVConstant);
         // If the buid is targeted on Repo, change the GV digest value.
-        calculateGlobalDigest(GV);
+        if (IsRepo)
+          calculateGlobalDigest(GV);
 
         // Clean up any obviously simplifiable users now.
         CleanupConstantGlobalUsers(GV, GV->getInitializer(), DL, TLI);
@@ -2362,7 +2359,8 @@ OptimizeGlobalVars(Module &M, TargetLibraryInfo *TLI,
         if (New && New != C) {
           GV->setInitializer(New);
           // If the buid is targeted on Repo, change the GV digest value.
-          calculateGlobalDigest(GV);
+          if (IsRepo)
+            calculateGlobalDigest(GV);
         }
       }
 
@@ -2427,7 +2425,8 @@ static void CommitValueTo(Constant *Val, Constant *Addr) {
     assert(GV->hasInitializer());
     GV->setInitializer(Val);
     // If the buid is targeted on Repo, change the GV digest value.
-    calculateGlobalDigest(GV);
+    if (IsRepo)
+      calculateGlobalDigest(GV);
     return;
   }
 
@@ -2436,7 +2435,8 @@ static void CommitValueTo(Constant *Val, Constant *Addr) {
   auto NewVal = EvaluateStoreInto(GV->getInitializer(), Val, CE, 2);
   GV->setInitializer(NewVal);
   // If the buid is targeted on Repo, change the GV digest value.
-  calculateGlobalDigest(GV);
+  if (IsRepo)
+    calculateGlobalDigest(GV);
 }
 
 /// Given a map of address -> value, where addresses are expected to be some form
@@ -2508,7 +2508,8 @@ static void BatchCommitValueTo(const DenseMap<Constant*, Constant*> &Mem) {
     assert(GVPair.first->hasInitializer());
     GVPair.first->setInitializer(GVPair.second);
     // If the buid is targeted on Repo, change the GV digest value.
-    calculateGlobalDigest(GVPair.first);
+    if (IsRepo)
+      calculateGlobalDigest(GVPair.first);
   }
 
   if (SimpleCEs.empty())
@@ -2537,7 +2538,8 @@ static void BatchCommitValueTo(const DenseMap<Constant*, Constant*> &Mem) {
         else
           CurrentGV->setInitializer(ConstantVector::get(Elts));
         // If the buid is targeted on Repo, change the GV digest value.
-        calculateGlobalDigest(CurrentGV);
+        if (IsRepo)
+          calculateGlobalDigest(CurrentGV);
       }
       if (CurrentGV == GV)
         return;
@@ -3020,6 +3022,8 @@ struct GlobalOptLegacyPass : public ModulePass {
   bool runOnModule(Module &M) override {
     if (skipModule(M))
       return false;
+
+    IsRepo = isObjFormatRepo(M);
 
     auto &DL = M.getDataLayout();
     auto *TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();

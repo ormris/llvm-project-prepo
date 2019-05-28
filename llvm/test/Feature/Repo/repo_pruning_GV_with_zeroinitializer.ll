@@ -5,8 +5,8 @@
 ; needs to be recalculated.
 
 ; The testcase includes three steps:
-; Step 1: Build the test Inputs/repo_GV_with_zeroinitializer.ll and create the database 'clang.db' which contains the Tickets.
-; Step 2: Build this file and check the function '-b' doesn't be pruned.
+; Step 1: Build the test Inputs/repo_GV_with_zeroinitializer.ll and create the database 'clang.db' which contains the compilations ('_a' and '.str.a').
+; Step 2: Build this file and check the function '_b' hasn't been pruned ('_b' and '_a' have the different digest values).
 
 ; This test only works for the Debug build because the digest of A is calculated for the Debug build.
 
