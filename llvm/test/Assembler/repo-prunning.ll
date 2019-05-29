@@ -51,9 +51,9 @@ entry:
   ret i32 %call
 }
 
-;CHECK:      !TicketNode(name: "c", digest: [16 x i8] c"{{.*}}", linkage: external, pruned: true)
-;CHECK: !TicketNode(name: "a", digest: [16 x i8] c"{{.*}}", linkage: external, pruned: true)
-;CHECK: !TicketNode(name: "b", digest: [16 x i8] c"{{.*}}", linkage: internal, pruned: true)
-;CHECK: !TicketNode(name: "me", digest: [16 x i8] c"{{.*}}", linkage: linkonce_odr, pruned: true)
-;CHECK: !TicketNode(name: "foo", digest: [16 x i8] c"{{.*}}", linkage: internal, pruned: true)
-;CHECK: !TicketNode(name: "bar", digest: [16 x i8] c"{{.*}}", linkage: external, pruned: true)
+;CHECK: !TicketNode(name: "c", digest: [16 x i8] c"{{.*}}", linkage: external, visibility: default, pruned: true)
+;CHECK: !TicketNode(name: "a", digest: [16 x i8] c"{{.*}}", linkage: external, visibility: default, pruned: true)
+;CHECK: !TicketNode(name: "b", digest: [16 x i8] c"{{.*}}", linkage: internal, visibility: default, pruned: true)
+;CHECK: !TicketNode(name: "me", digest: [16 x i8] c"{{.*}}", linkage: linkonce_odr, visibility: default, pruned: true)
+;CHECK: !TicketNode(name: "foo", digest: [16 x i8] c"{{.*}}", linkage: internal, visibility: default, pruned: true)
+;CHECK: !TicketNode(name: "bar", digest: [16 x i8] c"{{.*}}", linkage: external, visibility: default, pruned: true)

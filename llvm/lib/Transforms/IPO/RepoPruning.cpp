@@ -88,6 +88,18 @@ GlobalValue::LinkageTypes toGVLinkage(pstore::repo::linkage_type L) {
   llvm_unreachable("Unsupported linkage type");
 }
 
+GlobalValue::VisibilityTypes toGVVisibility(pstore::repo::visibility_type V) {
+  switch (V) {
+  case pstore::repo::visibility_type::default_visibility:
+    return GlobalValue::VisibilityTypes::DefaultVisibility;
+  case pstore::repo::visibility_type::hidden_visibility:
+    return GlobalValue::VisibilityTypes::HiddenVisibility;
+  case pstore::repo::visibility_type::protected_visibility:
+    return GlobalValue::VisibilityTypes::ProtectedVisibility;
+  }
+  llvm_unreachable("Unsupported visibility type");
+}
+
 StringRef toStringRef(pstore::raw_sstring_view S) {
   return {S.data(), S.size()};
 }
@@ -131,9 +143,9 @@ static void addDependentFragments(
       StringRef MDName =
           toStringRef(pstore::get_sstring_view(Repository, CM->name).second);
       LLVM_DEBUG(dbgs() << "    Prunning dependent name: " << MDName << '\n');
-      auto DMD =
-          TicketNode::get(M.getContext(), MDName, toDigestType(CM->digest),
-                          toGVLinkage(CM->linkage), true);
+      auto DMD = TicketNode::get(
+          M.getContext(), MDName, toDigestType(CM->digest),
+          toGVLinkage(CM->linkage), toGVVisibility(CM->visibility), true);
       // If functions 'A' and 'B' are dependent on function 'C', only add a
       // single TicketNode of 'C' to the 'repo.tickets' in order to avoid
       // multiple compilation_members of function 'C' in the compilation.

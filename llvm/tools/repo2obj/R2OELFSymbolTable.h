@@ -34,8 +34,10 @@ public:
     /// \param Size_  The object's size (in bytes).
     /// \param Linkage_  The symbol's linkage.
     SymbolTarget(OutputSection<ELFT> const *Section_, std::uint64_t Offset_,
-                 std::uint64_t Size_, pstore::repo::linkage_type Linkage_)
-        : Section{Section_}, Offset{Offset_}, Size{Size_}, Linkage{Linkage_} {
+                 std::uint64_t Size_, pstore::repo::linkage_type Linkage_,
+                 pstore::repo::visibility_type Visibility_)
+        : Section{Section_}, Offset{Offset_}, Size{Size_}, Linkage{Linkage_},
+          Visibility{Visibility_} {
       assert(Linkage_ == pstore::repo::linkage_type::common ||
              Section != nullptr);
     }
@@ -44,6 +46,7 @@ public:
     std::uint64_t Offset;
     std::uint64_t Size;
     pstore::repo::linkage_type Linkage;
+    pstore::repo::visibility_type Visibility;
   };
 
   struct Value {
@@ -81,11 +84,13 @@ public:
   /// the object.
   /// \param Size  The object's size (in bytes).
   /// \param Linkage  The symbol's linkage.
+  /// \param Visibility  The symbol's visibility.
   /// \returns A pointer to the newly created or pre-existing entry for this
   /// name in the symbol table.
   Value *insertSymbol(pstore::indirect_string const &Name,
                       OutputSection<ELFT> const *Section, std::uint64_t Offset,
-                      std::uint64_t Size, pstore::repo::linkage_type Linkage);
+                      std::uint64_t Size, pstore::repo::linkage_type Linkage,
+                      pstore::repo::visibility_type Visibility);
 
   /// If not already in the symbol table, an undef entry is created. This may be
   /// later turned into a proper definition by a subsequent call to insertSymbol
@@ -116,6 +121,7 @@ public:
 
 private:
   static unsigned linkageToELFBinding(pstore::repo::linkage_type L);
+  static unsigned char visibilityToELFOther(pstore::repo::visibility_type SV);
   static unsigned sectionToSymbolType(ELFSectionType T);
   static bool isTLSRelocation(pstore::repo::relocation_type Type);
 
@@ -142,6 +148,20 @@ unsigned SymbolTable<ELFT>::linkageToELFBinding(pstore::repo::linkage_type L) {
   default:
     return llvm::ELF::STB_GLOBAL;
   }
+}
+
+template <typename ELFT>
+unsigned char
+SymbolTable<ELFT>::visibilityToELFOther(pstore::repo::visibility_type SV) {
+  switch (SV) {
+  case pstore::repo::visibility_type::default_visibility:
+    return llvm::ELF::STV_DEFAULT;
+  case pstore::repo::visibility_type::hidden_visibility:
+    return llvm::ELF::STV_HIDDEN;
+  case pstore::repo::visibility_type::protected_visibility:
+    return llvm::ELF::STV_PROTECTED;
+  }
+  llvm_unreachable("Unsupported visibility type");
 }
 
 template <typename ELFT>
@@ -207,10 +227,11 @@ template <typename ELFT>
 auto SymbolTable<ELFT>::insertSymbol(pstore::indirect_string const &Name,
                                      OutputSection<ELFT> const *Section,
                                      std::uint64_t Offset, std::uint64_t Size,
-                                     pstore::repo::linkage_type Linkage)
+                                     pstore::repo::linkage_type Linkage,
+                                     pstore::repo::visibility_type Visibility)
     -> Value * {
-  auto SV =
-      this->insertSymbol(Name, SymbolTarget(Section, Offset, Size, Linkage));
+  auto SV = this->insertSymbol(
+      Name, SymbolTarget(Section, Offset, Size, Linkage, Visibility));
   if (Linkage == pstore::repo::linkage_type::common) {
     SV->IsCommon = true;
   } else {
@@ -279,6 +300,7 @@ SymbolTable<ELFT>::write(llvm::raw_ostream &OS,
                                 : static_cast<unsigned>(ELF::STT_OBJECT);
       assert(SV->IsTLS == (ST == llvm::ELF::STT_TLS));
       Symbol.setBindingAndType(linkageToELFBinding(T.Linkage), ST);
+      Symbol.st_other = visibilityToELFOther(T.Visibility);
       // The section (header table index) in which this value is defined.
       Symbol.st_shndx = SV->IsCommon ? static_cast<unsigned>(ELF::SHN_COMMON)
                                      : T.Section->getIndex();
@@ -329,6 +351,7 @@ auto SymbolTable<ELFT>::sort() -> std::vector<Value *> {
   for (auto &S : OrderedSymbols) {
     S->Index = ++Index;
   }
+
   return OrderedSymbols;
 }
 

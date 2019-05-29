@@ -167,111 +167,150 @@ class TicketNode : public MDNode {
   friend class LLVMContextImpl;
   friend class MDNode;
 
-  struct CheckLinkageType {
-    using LT = std::underlying_type<GlobalValue::LinkageTypes>::type;
-    using ULT = std::make_unsigned<LT>::type;
+  template <unsigned Bitwidth, typename Type> struct CheckType {
+    using LT = typename std::underlying_type<Type>::type;
+    using ULT = typename std::make_unsigned<LT>::type;
     template <typename U> static constexpr U max() {
       return std::numeric_limits<U>::max();
     }
-    static constexpr bool isSafeCast() {
+    static bool isSafeCast(Type Value) {
       return (std::is_unsigned<LT>::value ? true : max<LT>() > 0) &&
-             max<ULT>() <= max<unsigned>();
+             max<ULT>() <= max<unsigned>() &&
+             static_cast<unsigned>(Value) <= (1u << Bitwidth);
+    }
+  };
+
+  struct Data32 {
+    static unsigned combine(GlobalValue::VisibilityTypes high,
+                            GlobalValue::LinkageTypes low) {
+      return static_cast<unsigned>(high) << 16 | static_cast<unsigned>(low);
+    }
+
+    static GlobalValue::VisibilityTypes visibility(unsigned combined) {
+      return static_cast<GlobalValue::VisibilityTypes>(combined >> 16);
+    }
+
+    static GlobalValue::LinkageTypes linkage(unsigned combined) {
+      return static_cast<GlobalValue::LinkageTypes>(
+          combined & std::numeric_limits<uint16_t>::max());
     }
   };
 
   TicketNode(LLVMContext &C, StorageType Storage,
-             GlobalValue::LinkageTypes Linkage, bool Pruned,
+             GlobalValue::LinkageTypes Linkage,
+             GlobalValue::VisibilityTypes Visibility, bool Pruned,
              ArrayRef<Metadata *> MDs)
       : MDNode(C, TicketNodeKind, Storage, MDs) {
     assert(MDs.size() == 2 && "Expected a hash and name.");
-    static_assert(CheckLinkageType::isSafeCast(),
-                  "Linkage type will overflow!");
-    SubclassData32 = static_cast<unsigned>(Linkage);
+    assert((CheckType<4, GlobalValue::LinkageTypes>::isSafeCast(Linkage)) &&
+           "Linkage type will overflow!");
+    assert(
+        (CheckType<2, GlobalValue::VisibilityTypes>::isSafeCast(Visibility)) &&
+        "Visibility type will overflow!");
+    SubclassData32 = Data32::combine(Visibility, Linkage);
     SubclassData16 = static_cast<unsigned short>(Pruned);
   }
   ~TicketNode() { dropAllReferences(); }
 
   static TicketNode *getImpl(LLVMContext &Context, MDString *Name,
                              ConstantAsMetadata *GVHash,
-                             GlobalValue::LinkageTypes Linkage, bool Pruned,
-                             StorageType Storage, bool ShouldCreate = true);
+                             GlobalValue::LinkageTypes Linkage,
+                             GlobalValue::VisibilityTypes Visibility,
+                             bool Pruned, StorageType Storage,
+                             bool ShouldCreate = true);
 
   static TicketNode *getImpl(LLVMContext &Context, StringRef Name,
                              ticketmd::DigestType const &Digest,
-                             GlobalValue::LinkageTypes Linkage, bool Pruned,
-                             StorageType Storage, bool ShouldCreate = true);
+                             GlobalValue::LinkageTypes Linkage,
+                             GlobalValue::VisibilityTypes Visibility,
+                             bool Pruned, StorageType Storage,
+                             bool ShouldCreate = true);
 
   TempTicketNode cloneImpl() const {
     // Get the raw name/hash since it is possible to invoke this on
     // a TicketNode containing temporary metadata.
     return getTemporary(getContext(), getNameAsString(), getDigest(),
-                        getLinkage(), getPruned());
+                        getLinkage(), getVisibility(), getPruned());
   }
 
 public:
   static TicketNode *get(LLVMContext &Context, MDString *Name,
                          ConstantAsMetadata *GVHash,
-                         GlobalValue::LinkageTypes Linkage, bool Pruned) {
-    return getImpl(Context, Name, GVHash, Linkage, Pruned, Uniqued);
+                         GlobalValue::LinkageTypes Linkage,
+                         GlobalValue::VisibilityTypes Visibility, bool Pruned) {
+    return getImpl(Context, Name, GVHash, Linkage, Visibility, Pruned, Uniqued);
   }
 
   static TicketNode *get(LLVMContext &Context, StringRef Name,
                          ticketmd::DigestType const &Digest,
-                         GlobalValue::LinkageTypes Linkage, bool Pruned) {
-    return getImpl(Context, Name, Digest, Linkage, Pruned, Uniqued);
+                         GlobalValue::LinkageTypes Linkage,
+                         GlobalValue::VisibilityTypes Visibility, bool Pruned) {
+    return getImpl(Context, Name, Digest, Linkage, Visibility, Pruned, Uniqued);
   }
 
   static TicketNode *getIfExists(LLVMContext &Context, MDString *Name,
                                  ConstantAsMetadata *GVHash,
                                  GlobalValue::LinkageTypes Linkage,
+                                 GlobalValue::VisibilityTypes Visibility,
                                  bool Pruned) {
-    return getImpl(Context, Name, GVHash, Linkage, Pruned, Uniqued,
+    return getImpl(Context, Name, GVHash, Linkage, Visibility, Pruned, Uniqued,
                    /* ShouldCreate */ false);
   }
 
   static TicketNode *getIfExists(LLVMContext &Context, StringRef Name,
                                  ticketmd::DigestType const &Digest,
                                  GlobalValue::LinkageTypes Linkage,
+                                 GlobalValue::VisibilityTypes Visibility,
                                  bool Pruned) {
-    return getImpl(Context, Name, Digest, Linkage, Pruned, Uniqued,
+    return getImpl(Context, Name, Digest, Linkage, Visibility, Pruned, Uniqued,
                    /* ShouldCreate */ false);
   }
 
   static TicketNode *getDistinct(LLVMContext &Context, MDString *Name,
                                  ConstantAsMetadata *GVHash,
                                  GlobalValue::LinkageTypes Linkage,
+                                 GlobalValue::VisibilityTypes Visibility,
                                  bool Pruned) {
-    return getImpl(Context, Name, GVHash, Linkage, Pruned, Distinct);
+    return getImpl(Context, Name, GVHash, Linkage, Visibility, Pruned,
+                   Distinct);
   }
 
   static TicketNode *getDistinct(LLVMContext &Context, StringRef Name,
                                  ticketmd::DigestType const &Digest,
                                  GlobalValue::LinkageTypes Linkage,
+                                 GlobalValue::VisibilityTypes Visibility,
                                  bool Pruned) {
-    return getImpl(Context, Name, Digest, Linkage, Pruned, Distinct);
+    return getImpl(Context, Name, Digest, Linkage, Visibility, Pruned,
+                   Distinct);
   }
 
   static TempTicketNode getTemporary(LLVMContext &Context, MDString *Name,
                                      ConstantAsMetadata *GVHash,
                                      GlobalValue::LinkageTypes Linkage,
+                                     GlobalValue::VisibilityTypes Visibility,
                                      bool Pruned) {
     return TempTicketNode(
-        getImpl(Context, Name, GVHash, Linkage, Pruned, Temporary));
+        getImpl(Context, Name, GVHash, Linkage, Visibility, Pruned, Temporary));
   }
 
   static TempTicketNode getTemporary(LLVMContext &Context, StringRef Name,
                                      ticketmd::DigestType const &Digest,
                                      GlobalValue::LinkageTypes Linkage,
+                                     GlobalValue::VisibilityTypes Visibility,
                                      bool Pruned) {
     return TempTicketNode(
-        getImpl(Context, Name, Digest, Linkage, Pruned, Temporary));
+        getImpl(Context, Name, Digest, Linkage, Visibility, Pruned, Temporary));
   }
 
   /// Return a (temporary) clone of this.
   TempTicketNode clone() const { return cloneImpl(); }
 
   GlobalValue::LinkageTypes getLinkage() const {
-    return static_cast<GlobalValue::LinkageTypes>(SubclassData32);
+    return Data32::linkage(SubclassData32);
+  }
+
+  GlobalValue::VisibilityTypes getVisibility() const {
+    return Data32::visibility(SubclassData32);
   }
 
   bool getPruned() const { return static_cast<bool>(SubclassData16); }

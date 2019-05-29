@@ -20,7 +20,7 @@ define void @g() !repo_ticket !1 {
 
 !repo.tickets = !{!0, !1}
 
-!0 = !TicketNode(name: "k", digest: [16 x i8] c")\03/o;t+3Q\0A\1D\BBD\9D\999", linkage: internal, pruned: true)
-!1 = !TicketNode(name: "g", digest: [16 x i8] c"\86bx\AB\19\A64\98\91X\DE\FA\8C\7F{\E7", linkage: external, pruned: false)
-!2 = !TicketNode(name: "f", digest: [16 x i8] c")\03/o;t+3Q\0A\1D\BBD\9D\999", linkage: available_externally, pruned: true)
+!0 = !TicketNode(name: "k", digest: [16 x i8] c")\03/o;t+3Q\0A\1D\BBD\9D\999", linkage: internal, visibility: default, pruned: true)
+!1 = !TicketNode(name: "g", digest: [16 x i8] c"\86bx\AB\19\A64\98\91X\DE\FA\8C\7F{\E7", linkage: external, visibility: default, pruned: false)
+!2 = !TicketNode(name: "f", digest: [16 x i8] c")\03/o;t+3Q\0A\1D\BBD\9D\999", linkage: available_externally, visibility: default, pruned: true)
 

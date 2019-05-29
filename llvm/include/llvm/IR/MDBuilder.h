@@ -103,6 +103,7 @@ public:
   TicketNode *createTicketNode(StringRef Name,
                                ticketmd::DigestType const &Bytes,
                                GlobalValue::LinkageTypes Linkage,
+                               GlobalValue::VisibilityTypes Visibility,
                                bool Pruned = false);
 
   //===------------------------------------------------------------------===//

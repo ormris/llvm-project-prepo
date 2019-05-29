@@ -7,5 +7,5 @@ target triple = "x86_64-pc-linux-gnu-repo"
 
 !repo.tickets = !{!0}
 
-!0 = !TicketNode(name: "WeakData", digest: [16 x i8] c"W6c\E4\A2\C0\0BH\D2_\C7\E5\91\E9\13\C9", linkage: weak, pruned: false)
+!0 = !TicketNode(name: "WeakData", digest: [16 x i8] c"W6c\E4\A2\C0\0BH\D2_\C7\E5\91\E9\13\C9", linkage: weak, visibility: default, pruned: false)
 

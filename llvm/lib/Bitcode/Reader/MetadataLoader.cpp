@@ -1805,18 +1805,21 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     break;
   }
   case bitc::METADATA_TICKETNODE: {
-    if (Record.size() != 5)
+    if (Record.size() != 6)
       return error("Invalid record");
 
     IsDistinct = Record[0];
     MDString *Name = dyn_cast<MDString>(getMD(Record[1]));
     ConstantAsMetadata *GVHash = dyn_cast<ConstantAsMetadata>(getMD(Record[2]));
-    GlobalValue::LinkageTypes Linkage =
+    const GlobalValue::LinkageTypes Linkage =
         static_cast<GlobalValue::LinkageTypes>(Record[3]);
-    bool Pruned = Record[4];
+    const GlobalValue::VisibilityTypes Visibility =
+        static_cast<GlobalValue::VisibilityTypes>(Record[4]);
+    const bool Pruned = Record[5];
 
     MetadataList.assignValue(
-        GET_OR_DISTINCT(TicketNode, (Context, Name, GVHash, Linkage, Pruned)),
+        GET_OR_DISTINCT(TicketNode,
+                        (Context, Name, GVHash, Linkage, Visibility, Pruned)),
         NextMetadataNo);
     NextMetadataNo++;
     break;

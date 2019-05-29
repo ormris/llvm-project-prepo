@@ -28,5 +28,5 @@ entry:
 
 !repo.tickets = !{!0, !1}
 
-!0 = !TicketNode(name: "D", digest: [16 x i8] c"\BDV\AA\B2x\89c~\94\B4I\C8Eo)\AF", linkage: external, pruned: false)
-!1 = !TicketNode(name: "A", digest: [16 x i8] c"\B4 k\F6[\B8G\A6\9C\FC\C6/w\19\D3\BE", linkage: external, pruned: false)
+!0 = !TicketNode(name: "D", digest: [16 x i8] c"\BDV\AA\B2x\89c~\94\B4I\C8Eo)\AF", linkage: external, visibility: default, pruned: false)
+!1 = !TicketNode(name: "A", digest: [16 x i8] c"\B4 k\F6[\B8G\A6\9C\FC\C6/w\19\D3\BE", linkage: external, visibility: default, pruned: false)

@@ -64,4 +64,4 @@ entry:
 
 
 ; TODO: Change pruned from false to true once support the relative line in the debug line info.
-;CHECK: !TicketNode(name: "Bar", digest: [16 x i8] c"{{.+}}", linkage: external, pruned: false)
+;CHECK: !TicketNode(name: "Bar", digest: [16 x i8] c"{{.+}}", linkage: external, visibility: default, pruned: false)

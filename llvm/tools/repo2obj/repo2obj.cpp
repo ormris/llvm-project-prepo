@@ -443,7 +443,8 @@ int main(int argc, char *argv[]) {
         pstore::repo::bss_section const &S =
             Fragment->at<pstore::repo::section_kind::bss>();
         State.Symbols.insertSymbol(Name, nullptr /*no output section*/,
-                                   0 /*offset*/, S.size(), CM.linkage);
+                                   0 /*offset*/, S.size(), CM.linkage,
+                                   CM.visibility);
         continue;
       }
       // Go through the sections that this fragment contains creating the

@@ -1615,6 +1615,7 @@ struct MDFieldPrinter {
   void printNameTableKind(StringRef Name,
                           DICompileUnit::DebugNameTableKind NTK);
   void printLinkage(GlobalValue::LinkageTypes LT);
+  void printVisibility(GlobalValue::VisibilityTypes VT);
 };
 
 } // end anonymous namespace
@@ -1683,8 +1684,28 @@ static const char *getLinkagePrintName(GlobalValue::LinkageTypes LT) {
 
 void MDFieldPrinter::printLinkage(GlobalValue::LinkageTypes LT) {
   Out << FS << "linkage: ";
-  StringRef Linkage = StringRef(getLinkagePrintName(LT)).rtrim(' ');
-  Out << (Linkage.empty() ? "external" : Linkage);
+  const StringRef Linkage(getLinkagePrintName(LT));
+  size_t end = Linkage.find_last_not_of(" ");
+  Out << (end == std::string::npos ? "external" : Linkage.substr(0, end + 1));
+}
+
+static const char *getVisibilityPrintName(GlobalValue::VisibilityTypes VT) {
+  switch (VT) {
+  case GlobalValue::DefaultVisibility:
+    return "";
+  case GlobalValue::HiddenVisibility:
+    return "hidden ";
+  case GlobalValue::ProtectedVisibility:
+    return "protected ";
+  }
+  llvm_unreachable("invalid visibility");
+}
+
+void MDFieldPrinter::printVisibility(GlobalValue::VisibilityTypes VT) {
+  Out << FS << "visibility: ";
+  const std::string Visibility = getVisibilityPrintName(VT);
+  size_t end = Visibility.find_last_not_of(" ");
+  Out << (end == std::string::npos ? "default" : Visibility.substr(0, end + 1));
 }
 
 static void writeMetadataAsOperand(raw_ostream &Out, const Metadata *MD,
@@ -2221,6 +2242,7 @@ static void writeTicketNode(raw_ostream &Out, const TicketNode *DN,
   Printer.printMetadata("digest", DN->getDigestAsMD(),
                         /* ShouldSkipNull */ false);
   Printer.printLinkage(DN->getLinkage());
+  Printer.printVisibility(DN->getVisibility());
   Printer.printBool("pruned", DN->getPruned());
   Out << ")";
 }

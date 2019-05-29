@@ -2477,9 +2477,12 @@ typedef MetadataTest TicketNodeTest;
 
 TEST_F(TicketNodeTest, get) {
   ticketmd::DigestType Digest = getDigest();
-  TicketNode *D = TicketNode::get(Context, "foo", Digest,
-                                  GlobalValue::ExternalLinkage, false);
-  EXPECT_EQ(GlobalValue::ExternalLinkage, D->getLinkage());
+  TicketNode *D = TicketNode::get(
+      Context, "foo", Digest, GlobalValue::LinkageTypes::ExternalLinkage,
+      GlobalValue::VisibilityTypes::DefaultVisibility, false);
+  EXPECT_EQ(GlobalValue::LinkageTypes::ExternalLinkage, D->getLinkage());
+  EXPECT_EQ(GlobalValue::VisibilityTypes::DefaultVisibility,
+            D->getVisibility());
   EXPECT_FALSE(D->getPruned());
   EXPECT_EQ("foo", D->getNameAsString());
   EXPECT_EQ(Digest, D->getDigest());
@@ -2489,29 +2492,38 @@ TEST_F(TicketNodeTest, get) {
 TEST_F(TicketNodeTest, getDistinct) {
   ticketmd::DigestType Digest = getDigest();
   TicketNode *L0 = TicketNode::getDistinct(
-      Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage, true);
+      Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage,
+      GlobalValue::VisibilityTypes::HiddenVisibility, true);
   EXPECT_TRUE(L0->isDistinct());
+  EXPECT_EQ(GlobalValue::VisibilityTypes::HiddenVisibility,
+            L0->getVisibility());
   TicketNode *L1 = TicketNode::get(
-      Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage, true);
+      Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage,
+      GlobalValue::VisibilityTypes::HiddenVisibility, true);
   EXPECT_FALSE(L1->isDistinct());
   EXPECT_NE(L1, L0);
-  EXPECT_EQ(L1,
-            TicketNode::get(Context, "foo", Digest,
-                            GlobalValue::LinkageTypes::InternalLinkage, true));
+  EXPECT_EQ(L1, TicketNode::get(Context, "foo", Digest,
+                                GlobalValue::LinkageTypes::InternalLinkage,
+                                GlobalValue::VisibilityTypes::HiddenVisibility,
+                                true));
 }
 
 TEST_F(TicketNodeTest, getTemporary) {
   ticketmd::DigestType Digest = getDigest();
   auto L = TicketNode::getTemporary(
-      Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage, true);
+      Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage,
+      GlobalValue::VisibilityTypes::ProtectedVisibility, true);
   EXPECT_TRUE(L->isTemporary());
   EXPECT_FALSE(L->isResolved());
+  EXPECT_EQ(GlobalValue::VisibilityTypes::ProtectedVisibility,
+            L->getVisibility());
 }
 
 TEST_F(TicketNodeTest, cloneTemporary) {
   ticketmd::DigestType Digest = getDigest();
   auto L = TicketNode::getTemporary(
-      Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage, true);
+      Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage,
+      GlobalValue::VisibilityTypes::DefaultVisibility, true);
   EXPECT_TRUE(L->isTemporary());
   auto L2 = L->clone();
   EXPECT_TRUE(L2->isTemporary());

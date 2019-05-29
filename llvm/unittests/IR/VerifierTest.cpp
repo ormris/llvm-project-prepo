@@ -202,7 +202,8 @@ TEST(VerifierTest, TicketNodeVariable) {
   // Valid TicketNode.
   GV->setMetadata(LLVMContext::MD_repo_ticket,
                   MDB.createTicketNode(GV->getName(), ticketmd::DigestType(),
-                                       GV->getLinkage(), false));
+                                       GV->getLinkage(), GV->getVisibility(),
+                                       false));
   EXPECT_FALSE(verifyModule(M));
 }
 
@@ -213,10 +214,10 @@ TEST(VerifierTest, TicketNodeFunction) {
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg=*/false);
   auto Func = Function::Create(FTy, GlobalValue::ExternalLinkage, "foo", &M);
   // Valid global variable name.
-  Func->setMetadata(LLVMContext::MD_repo_ticket,
-                    MDB.createTicketNode(Func->getName(),
-                                         ticketmd::DigestType(),
-                                         Func->getLinkage(), false));
+  Func->setMetadata(
+      LLVMContext::MD_repo_ticket,
+      MDB.createTicketNode(Func->getName(), ticketmd::DigestType(),
+                           Func->getLinkage(), Func->getVisibility(), false));
   EXPECT_FALSE(verifyModule(M));
 }
 

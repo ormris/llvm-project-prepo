@@ -22,6 +22,6 @@ $_ZL4fact = comdat any
 
 !repo.tickets = !{!0}
 
-!0 = !TicketNode(name: "_ZL4fact", digest: [16 x i8] c"\DC\8BWeQ\E4\03\E6\F3:\DE\D1\9F\90\AC\F7", linkage: internal, pruned: false)
+!0 = !TicketNode(name: "_ZL4fact", digest: [16 x i8] c"\DC\8BWeQ\E4\03\E6\F3:\DE\D1\9F\90\AC\F7", linkage: internal, visibility: default, pruned: false)
 
 

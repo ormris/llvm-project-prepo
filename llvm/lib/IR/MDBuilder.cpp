@@ -94,8 +94,9 @@ MDNode *MDBuilder::createRange(const APInt &Lo, const APInt &Hi) {
 TicketNode *MDBuilder::createTicketNode(StringRef Name,
                                         ticketmd::DigestType const &Bytes,
                                         GlobalValue::LinkageTypes Linkage,
+                                        GlobalValue::VisibilityTypes Visibility,
                                         bool Pruned) {
-  return TicketNode::get(Context, Name, Bytes, Linkage, Pruned);
+  return TicketNode::get(Context, Name, Bytes, Linkage, Visibility, Pruned);
 }
 
 MDNode *MDBuilder::createRange(Constant *Lo, Constant *Hi) {

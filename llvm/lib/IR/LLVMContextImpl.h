@@ -468,15 +468,19 @@ template <> struct MDNodeKeyImpl<TicketNode> {
   Metadata *Name;
   Metadata *Digest;
   GlobalValue::LinkageTypes Linkage;
+  GlobalValue::VisibilityTypes Visibility;
   bool Pruned;
 
-  MDNodeKeyImpl(GlobalValue::LinkageTypes Linkage, bool Pruned, Metadata *Name,
-                Metadata *Digest)
-      : Name(Name), Digest(Digest), Linkage(Linkage), Pruned(Pruned) {}
+  MDNodeKeyImpl(GlobalValue::LinkageTypes Linkage,
+                GlobalValue::VisibilityTypes Visibility, bool Pruned,
+                Metadata *Name, Metadata *Digest)
+      : Name(Name), Digest(Digest), Linkage(Linkage), Visibility(Visibility),
+        Pruned(Pruned) {}
 
   MDNodeKeyImpl(const TicketNode *RHS)
       : Name(RHS->getNameAsMD()), Digest(RHS->getDigestAsMD()),
-        Linkage(RHS->getLinkage()), Pruned(RHS->getPruned()) {}
+        Linkage(RHS->getLinkage()), Visibility(RHS->getVisibility()),
+        Pruned(RHS->getPruned()) {}
 
   bool isKeyOf(const TicketNode *RHS) const {
     return Name == RHS->getNameAsMD() && Digest == RHS->getDigestAsMD() &&

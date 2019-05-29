@@ -11,4 +11,4 @@ entry:
 declare i32 @puts(i8* nocapture readonly) local_unnamed_addr
 !repo.tickets = !{!0}
 
-!0 = !TicketNode(name: "g", digest: [16 x i8] c"r\D5\E2\FD\BC\F9\97\AB\1E\03\CFr\C8\AB\A3\14", linkage: external, pruned: false)
+!0 = !TicketNode(name: "g", digest: [16 x i8] c"r\D5\E2\FD\BC\F9\97\AB\1E\03\CFr\C8\AB\A3\14", linkage: external, visibility: default, pruned: false)

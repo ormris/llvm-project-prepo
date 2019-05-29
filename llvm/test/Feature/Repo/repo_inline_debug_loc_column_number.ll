@@ -61,4 +61,4 @@ entry:
 !13 = !DILocation(line: 8, column: 1, scope: !6)
 
 
-;CHECK: !TicketNode(name: "Bar", digest: [16 x i8] c"{{.+}}", linkage: external, pruned: false)
+;CHECK: !TicketNode(name: "Bar", digest: [16 x i8] c"{{.+}}", linkage: external, visibility: default, pruned: false)

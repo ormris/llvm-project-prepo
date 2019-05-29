@@ -20,10 +20,10 @@ entry:
 
 !repo.tickets = !{!2, !3, !0, !1}
 
-!0 = !TicketNode(name: "a", digest: [16 x i8] c"\D0\AD(uUM\B749>\F5\01\0E\B2\D6[", linkage: internal, pruned: false)
-!1 = !TicketNode(name: "b", digest: [16 x i8] c"\D0\AD(uUM\B749>\F5\01\0E\B2\D6[", linkage: internal, pruned: false)
-!2 = !TicketNode(name: "foo", digest: [16 x i8] c"K\B6F\C6o\15\FD\E7se\FC\83\C8'\04+", linkage: internal, pruned: false)
-!3 = !TicketNode(name: "bar", digest: [16 x i8] c"K\B6F\C6o\15\FD\E7se\FC\83\C8'\04+", linkage: internal, pruned: false)
+!0 = !TicketNode(name: "a", digest: [16 x i8] c"\D0\AD(uUM\B749>\F5\01\0E\B2\D6[", linkage: internal, visibility: default, pruned: false)
+!1 = !TicketNode(name: "b", digest: [16 x i8] c"\D0\AD(uUM\B749>\F5\01\0E\B2\D6[", linkage: internal, visibility: default, pruned: false)
+!2 = !TicketNode(name: "foo", digest: [16 x i8] c"K\B6F\C6o\15\FD\E7se\FC\83\C8'\04+", linkage: internal, visibility: default, pruned: false)
+!3 = !TicketNode(name: "bar", digest: [16 x i8] c"K\B6F\C6o\15\FD\E7se\FC\83\C8'\04+", linkage: internal, visibility: default, pruned: false)
 
 ;CHECK: A dummy section: section type 'text' and digest '2b0427c883fc6573e7fd156fc646b64b'
 ;CHECK: A dummy section: section type 'data' and digest '5bd6b20e01f53e3934b74d557528add0'

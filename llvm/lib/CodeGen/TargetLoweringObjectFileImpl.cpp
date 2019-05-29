@@ -875,12 +875,13 @@ static MCSectionRepo *selectRepoSectionForGlobal(MCContext &Ctx,
     // Add new created digest to the TicketNodes.
     assert(!GO->getMetadata(LLVMContext::MD_repo_ticket) &&
            "TicketNode should be NULL!");
-    auto TN =
-        TicketNode::getIfExists(GO->getParent()->getContext(), GO->getName(),
-                                Result.first, GO->getLinkage(), true);
+    auto TN = TicketNode::getIfExists(
+        GO->getParent()->getContext(), GO->getName(), Result.first,
+        GO->getLinkage(), GO->getVisibility(), true);
     if (!TN) {
       MDBuilder MDB(GO->getParent()->getContext());
-      TN = MDB.createTicketNode(GO->getName(), Result.first, GO->getLinkage());
+      TN = MDB.createTicketNode(GO->getName(), Result.first, GO->getLinkage(),
+                                GO->getVisibility());
       Ctx.addTicketNode(TN);
     }
     Sym->CorrespondingTicketNode = TN;

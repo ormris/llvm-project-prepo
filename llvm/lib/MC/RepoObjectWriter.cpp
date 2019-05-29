@@ -171,6 +171,9 @@ public:
   static pstore::repo::linkage_type
   toPstoreLinkage(GlobalValue::LinkageTypes L);
 
+  static pstore::repo::visibility_type
+  toPstoreVisibility(GlobalValue::VisibilityTypes V);
+
   bool isSymbolRefDifferenceFullyResolvedImpl(const MCAssembler &Asm,
                                               const MCSymbol &SymA,
                                               const MCFragment &FB, bool InSet,
@@ -581,6 +584,20 @@ RepoObjectWriter::toPstoreLinkage(GlobalValue::LinkageTypes L) {
   }
 }
 
+pstore::repo::visibility_type
+RepoObjectWriter::toPstoreVisibility(GlobalValue::VisibilityTypes V) {
+  switch (V) {
+  case GlobalValue::DefaultVisibility:
+    return pstore::repo::visibility_type::default_visibility;
+  case GlobalValue::HiddenVisibility:
+    return pstore::repo::visibility_type::hidden_visibility;
+  case GlobalValue::ProtectedVisibility:
+    return pstore::repo::visibility_type::protected_visibility;
+  default:
+    report_fatal_error("Unsupported visibility type");
+  }
+}
+
 pstore::raw_sstring_view RepoObjectWriter::getSymbolName(
     const MCAssembler &Asm, const TicketNode &TicketMember,
     const ModuleNamesContainer &Names, NamesWithPrefixContainer &Symbols) {
@@ -674,6 +691,7 @@ pstore::index::digest RepoObjectWriter::buildCompilationRecord(
 
     auto DigestVal = pstore::index::digest{D.high(), D.low()};
     auto Linkage = toPstoreLinkage(Symbol->getLinkage());
+    auto Visibility = toPstoreVisibility(Symbol->getVisibility());
     // If the global object was removed during LLVM's transform passes, this
     // member is not emitted and doesn't insert to the database, and it does
     // not contribute to the hash.
@@ -682,7 +700,7 @@ pstore::index::digest RepoObjectWriter::buildCompilationRecord(
           DigestVal, pstore::extent<pstore::repo::fragment>(),
           pstore::typed_address<pstore::indirect_string>(
               pstore::address{NamePtr}),
-          Linkage);
+          Linkage, Visibility);
       // Update the Ticket node to remember the corrresponding ticket member.
       Symbol->CorrespondingCompilationMember = &CompilationMembers.back();
       // If this TicketNode was created by the backend, it will be put into
@@ -690,6 +708,7 @@ pstore::index::digest RepoObjectWriter::buildCompilationRecord(
       // tickets will be pruned and contributed to the ticket hash.
       CompilationHash.update(makeByteArrayRef(DigestVal));
       CompilationHash.update(makeByteArrayRef(Linkage));
+      CompilationHash.update(makeByteArrayRef(Visibility));
       CompilationHash.update(Name.size());
       CompilationHash.update(stringViewAsRef(Name));
     }

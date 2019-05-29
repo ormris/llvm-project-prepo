@@ -14,7 +14,7 @@ target triple = "x86_64-pc-linux-gnu-repo"
 
 !repo.tickets = !{!0}
 
-!0 = !TicketNode(name: "b", digest: [16 x i8] c"~6\BE\1B\E6>\ED5s\17\B2\F6\8B\91\C8_", linkage: external, pruned: false)
+!0 = !TicketNode(name: "b", digest: [16 x i8] c"~6\BE\1B\E6>\ED5s\17\B2\F6\8B\91\C8_", linkage: external, visibility: default, pruned: false)
 
 ;CHECK: compilation {{[0-9a-fA-F]+}} exists. skipping
 

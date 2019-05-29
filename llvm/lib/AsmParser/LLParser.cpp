@@ -3833,6 +3833,11 @@ struct LinkageField : public MDUnsignedField {
       : MDUnsignedField(0, GlobalValue::LinkageTypes::CommonLinkage) {}
 };
 
+struct VisibilityField : public MDUnsignedField {
+  VisibilityField()
+      : MDUnsignedField(0, GlobalValue::VisibilityTypes::ProtectedVisibility) {}
+};
+
 struct PrunedField : public MDBoolField {
   PrunedField() : MDBoolField() {}
 };
@@ -4242,6 +4247,20 @@ bool LLParser::ParseMDField(LocTy Loc, StringRef Name, LinkageField &Result) {
 
   Result.assign(Res);
   Lex.Lex();
+  return false;
+}
+
+template <>
+bool LLParser::ParseMDField(LocTy Loc, StringRef Name, VisibilityField &Result) {
+  unsigned Res;
+  const auto Kind = Lex.getKind();
+  if (Kind != lltok::kw_default && Kind != lltok::kw_hidden &&
+      Kind != lltok::kw_protected)
+    return TokError("Invalid visibility type!");
+
+  ParseOptionalVisibility(Res);
+  assert(Res <= Result.Max && "Expected valid visibility type");
+  Result.assign(Res);
   return false;
 }
 
@@ -4930,12 +4949,13 @@ bool LLParser::ParseDIImportedEntity(MDNode *&Result, bool IsDistinct) {
 }
 
 /// ParseTicketNode:
-///   ::= !TicketNode(name: "foo", digest: !0, linkage: external, pruned: false)
+///   ::= !TicketNode(name: "foo", digest: !0, linkage: external, visibility: hidden, pruned: false)
 bool LLParser::ParseTicketNode(MDNode *&Result, bool IsDistinct) {
 #define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
   REQUIRED(name, MDStringField, );                                             \
   REQUIRED(digest, MDField, );                                                 \
   REQUIRED(linkage, LinkageField, );                                           \
+  REQUIRED(visibility, VisibilityField, );                                     \
   REQUIRED(pruned, PrunedField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
@@ -4943,7 +4963,8 @@ bool LLParser::ParseTicketNode(MDNode *&Result, bool IsDistinct) {
   Result = GET_OR_DISTINCT(
       TicketNode,
       (Context, name.Val, dyn_cast<ConstantAsMetadata>(digest.Val),
-       static_cast<GlobalValue::LinkageTypes>(linkage.Val), pruned.Val));
+       static_cast<GlobalValue::LinkageTypes>(linkage.Val),
+       static_cast<GlobalValue::VisibilityTypes>(visibility.Val), pruned.Val));
   return false;
 }
 
