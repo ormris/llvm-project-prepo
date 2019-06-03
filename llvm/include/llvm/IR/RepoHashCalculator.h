@@ -101,6 +101,7 @@ public:
   void beginCalculate(const Module &M) {
     SNMap.clear();
     GlobalNumbers.clear();
+    TypeNumbers.clear();
     reset(M);
   }
 
@@ -217,6 +218,9 @@ private:
 
   // The global state we will use.
   DenseMap<const GlobalValue *, unsigned> GlobalNumbers;
+
+  // The types which are used in the global variable or function.
+  DenseMap<const Type *, unsigned> TypeNumbers;
 
   std::string TheHash;
 };

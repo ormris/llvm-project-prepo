@@ -20,11 +20,11 @@ entry:
   ret i32 2
 }
 
-;CHECK: !0 = !TicketNode(name: "fp_foo", digest: [16 x i8] c"\91\16\81\CD\15\C0 Bd*\13\E2\12\92-\E7", linkage: external, pruned: false)
-;CHECK: !1 = !TicketNode(name: "fp_bar", digest: [16 x i8] c"\B1\B1c\C0\06c+\C6\E6}\8A\15\DBz%3", linkage: external, pruned: false)
-;CHECK: !2 = !TicketNode(name: "a", digest: [16 x i8] c"\D0\AD(uUM\B749>\F5\01\0E\B2\D6[", linkage: internal, pruned: false)
-;CHECK: !3 = !TicketNode(name: "vp_a", digest: [16 x i8] c"\0D\97\AD\B1\C6<\0C*\C3\CB\F6\EA\95\C3\0Fa", linkage: external, pruned: false)
-;CHECK: !4 = !TicketNode(name: "b", digest: [16 x i8] c"X0y\87m.\F8\08\94k$\D9\16\EFh\06", linkage: internal, pruned: false)
-;CHECK: !5 = !TicketNode(name: "vp_b", digest: [16 x i8] c"\F7\C2N\957$:\F4bd\D0\AE:\92S&", linkage: external, pruned: false)
-;CHECK: !6 = !TicketNode(name: "foo", digest: [16 x i8] c"OUw\D0\E9\98\AF\0C\1D\E0\11cU\A5\AD\C6", linkage: internal, pruned: false)
-;CHECK: !7 = !TicketNode(name: "bar", digest: [16 x i8] c"g\8E3\06\C3\DC\A1\A4\C5(\17\80\E3\0F\0A\E5", linkage: internal, pruned: false)
+;CHECK: !0 = !TicketNode(name: "fp_foo", digest: [16 x i8] c"\A1N:d\80\EE\B4\81\9E\94\E5\A4-\8D\E6,", linkage: external, pruned: false)
+;CHECK: !1 = !TicketNode(name: "fp_bar", digest: [16 x i8] c"\EAu<\9D\84X\05\B4u'\8A\DCx<\0C:", linkage: external, pruned: false)
+;CHECK: !2 = !TicketNode(name: "a", digest: [16 x i8] c"\AC$P\92\CBZ\FF\00\A7\ADW\C01\BE\DB>", linkage: internal, pruned: false)
+;CHECK: !3 = !TicketNode(name: "vp_a", digest: [16 x i8] c"N9\06&\E1\D0\A5\B1Q\C3\B9]u\CC\CF\EE", linkage: external, pruned: false)
+;CHECK: !4 = !TicketNode(name: "b", digest: [16 x i8] c"\0C4\E57aqV\18\0Ag \11&\F5\91\AA", linkage: internal, pruned: false)
+;CHECK: !5 = !TicketNode(name: "vp_b", digest: [16 x i8] c"[\D1\D9\84\AA&\C7i\A8\F4\0B+{\BE\A69", linkage: external, pruned: false)
+;CHECK: !6 = !TicketNode(name: "foo", digest: [16 x i8] c"\10*j\F7-\D1\DB\C0uM}R\C0\E4\8A\8D", linkage: internal, pruned: false)
+;CHECK: !7 = !TicketNode(name: "bar", digest: [16 x i8] c"\AF\CC*7\1A\BC\06:;\B5\94\1Al\8D\E7L", linkage: internal, pruned: false)

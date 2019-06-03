@@ -127,6 +127,13 @@ void HashCalculator::hashType(Type *Ty) {
   Hash.update(HashKind::TAG_Type);
   Hash.update(Ty->getTypeID());
 
+  DenseMap<const Type *, unsigned>::iterator TyItr = TypeNumbers.find(Ty);
+  if (TyItr != TypeNumbers.end()) {
+    hashNumber(TyItr->second);
+    return;
+  }
+  TypeNumbers.insert(std::make_pair(Ty, TypeNumbers.size()));
+
   switch (Ty->getTypeID()) {
   // PrimitiveTypes
   case Type::VoidTyID:
@@ -159,10 +166,14 @@ void HashCalculator::hashType(Type *Ty) {
     PointerType *PTy = dyn_cast<PointerType>(Ty);
     assert(PTy && "Ty type must be pointers here.");
     hashNumber(PTy->getAddressSpace());
+    hashType(PTy->getElementType());
     break;
   }
   case Type::StructTyID: {
     StructType *STy = cast<StructType>(Ty);
+    if (!STy->isLiteral() && !STy->getName().empty()) {
+      hashMem(STy->getName());
+    }
     for (Type *ElemTy : STy->elements()) {
       hashType(ElemTy);
     }

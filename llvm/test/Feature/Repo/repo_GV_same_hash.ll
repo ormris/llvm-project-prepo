@@ -21,11 +21,11 @@ entry:
   ret i32 1
 }
 
-;CHECK: !0 = !TicketNode(name: "fp_foo", digest: [16 x i8] c"\91\16\81\CD\15\C0 Bd*\13\E2\12\92-\E7", linkage: external, pruned: false)
-;CHECK: !1 = !TicketNode(name: "fp_bar", digest: [16 x i8] c"yK\8F\AC\E3\F6'\0C\BC\ED\AC\FF\9COL\FB", linkage: external, pruned: false)
-;CHECK: !2 = !TicketNode(name: "a", digest: [16 x i8] c"\D0\AD(uUM\B749>\F5\01\0E\B2\D6[", linkage: internal, pruned: false)
-;CHECK: !3 = !TicketNode(name: "vp_a", digest: [16 x i8] c"\0D\97\AD\B1\C6<\0C*\C3\CB\F6\EA\95\C3\0Fa", linkage: external, pruned: false)
-;CHECK: !4 = !TicketNode(name: "b", digest: [16 x i8] c"\D0\AD(uUM\B749>\F5\01\0E\B2\D6[", linkage: internal, pruned: false)
-;CHECK: !5 = !TicketNode(name: "vp_b", digest: [16 x i8] c"\C6\CEaX\C5~\CFI\B1\0Dd\94\91q\AA\9E", linkage: external, pruned: false)
-;CHECK: !6 = !TicketNode(name: "foo", digest: [16 x i8] c"OUw\D0\E9\98\AF\0C\1D\E0\11cU\A5\AD\C6", linkage: internal, pruned: false)
-;CHECK: !7 = !TicketNode(name: "bar", digest: [16 x i8] c"OUw\D0\E9\98\AF\0C\1D\E0\11cU\A5\AD\C6", linkage: internal, pruned: false)
+;CHECK: !0 = !TicketNode(name: "fp_foo", digest: [16 x i8] c"\A1N:d\80\EE\B4\81\9E\94\E5\A4-\8D\E6,", linkage: external, pruned: false)
+;CHECK: !1 = !TicketNode(name: "fp_bar", digest: [16 x i8] c"\F0\EE\97\CA%Y\81H)8\F6\E5\B9\B2\C9\CD", linkage: external, pruned: false)
+;CHECK: !2 = !TicketNode(name: "a", digest: [16 x i8] c"\AC$P\92\CBZ\FF\00\A7\ADW\C01\BE\DB>", linkage: internal, pruned: false)
+;CHECK: !3 = !TicketNode(name: "vp_a", digest: [16 x i8] c"N9\06&\E1\D0\A5\B1Q\C3\B9]u\CC\CF\EE", linkage: external, pruned: false)
+;CHECK: !4 = !TicketNode(name: "b", digest: [16 x i8] c"\AC$P\92\CBZ\FF\00\A7\ADW\C01\BE\DB>", linkage: internal, pruned: false)
+;CHECK: !5 = !TicketNode(name: "vp_b", digest: [16 x i8] c"\F8\B4K\CA\C3\EAC?\D9\82\BC\15?yq}", linkage: external, pruned: false)
+;CHECK: !6 = !TicketNode(name: "foo", digest: [16 x i8] c"\10*j\F7-\D1\DB\C0uM}R\C0\E4\8A\8D", linkage: internal, pruned: false)
+;CHECK: !7 = !TicketNode(name: "bar", digest: [16 x i8] c"\10*j\F7-\D1\DB\C0uM}R\C0\E4\8A\8D", linkage: internal, pruned: false)
