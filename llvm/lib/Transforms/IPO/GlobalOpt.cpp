@@ -2016,7 +2016,7 @@ static bool processInternalGlobal(
       if (isa<UndefValue>(GV->getInitializer())) {
         // Change the initial value here.
         GV->setInitializer(SOVConstant);
-        // If the buid is targeted on Repo, change the GV digest value.
+        // If the build targets the repo, change the GV digest value.
         if (IsRepo)
           calculateGlobalDigest(GV);
 
@@ -2358,7 +2358,7 @@ OptimizeGlobalVars(Module &M, TargetLibraryInfo *TLI,
         Constant *New = ConstantFoldConstant(C, DL, TLI);
         if (New && New != C) {
           GV->setInitializer(New);
-          // If the buid is targeted on Repo, change the GV digest value.
+          // If the build targets the repo, change the GV digest value.
           if (IsRepo)
             calculateGlobalDigest(GV);
         }
@@ -2424,7 +2424,7 @@ static void CommitValueTo(Constant *Val, Constant *Addr) {
   if (GlobalVariable *GV = dyn_cast<GlobalVariable>(Addr)) {
     assert(GV->hasInitializer());
     GV->setInitializer(Val);
-    // If the buid is targeted on Repo, change the GV digest value.
+    // If the build targets the repo, change the GV digest value.
     if (IsRepo)
       calculateGlobalDigest(GV);
     return;
@@ -2434,7 +2434,7 @@ static void CommitValueTo(Constant *Val, Constant *Addr) {
   GlobalVariable *GV = cast<GlobalVariable>(CE->getOperand(0));
   auto NewVal = EvaluateStoreInto(GV->getInitializer(), Val, CE, 2);
   GV->setInitializer(NewVal);
-  // If the buid is targeted on Repo, change the GV digest value.
+  // If the build targets the repo, change the GV digest value.
   if (IsRepo)
     calculateGlobalDigest(GV);
 }
@@ -2507,7 +2507,7 @@ static void BatchCommitValueTo(const DenseMap<Constant*, Constant*> &Mem) {
   for (auto GVPair : GVs) {
     assert(GVPair.first->hasInitializer());
     GVPair.first->setInitializer(GVPair.second);
-    // If the buid is targeted on Repo, change the GV digest value.
+    // If the build targets the repo, change the GV digest value.
     if (IsRepo)
       calculateGlobalDigest(GVPair.first);
   }
@@ -2537,7 +2537,7 @@ static void BatchCommitValueTo(const DenseMap<Constant*, Constant*> &Mem) {
           CurrentGV->setInitializer(ConstantArray::get(ArrTy, Elts));
         else
           CurrentGV->setInitializer(ConstantVector::get(Elts));
-        // If the buid is targeted on Repo, change the GV digest value.
+        // If the build targets the repo, change the GV digest value.
         if (IsRepo)
           calculateGlobalDigest(CurrentGV);
       }
