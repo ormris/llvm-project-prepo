@@ -13,3 +13,10 @@ define void @call_foo() {
   %call = call i32 @foo()
   ret void
 }
+
+@bar = alias i32(), i32()* @Fn
+define i32 @test() {
+entry:
+  %0 = call i32() @bar()
+  ret i32 %0
+}

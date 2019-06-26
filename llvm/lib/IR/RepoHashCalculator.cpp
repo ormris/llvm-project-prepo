@@ -320,6 +320,11 @@ void HashCalculator::hashGlobalValue(const GlobalValue *V) {
       hashConstant(GV->getInitializer());
   }
 
+  if (auto *GA = dyn_cast<GlobalAlias>(V)) {
+    if (auto GAV = dyn_cast<GlobalValue>(GA->getAliasee()->stripPointerCasts()))
+      V = GAV;
+  }
+
   if (auto *GO = dyn_cast<GlobalObject>(V)) {
     // Push GO into the dependent list if it is not a declaration.
     if (!GO->isDeclaration())
