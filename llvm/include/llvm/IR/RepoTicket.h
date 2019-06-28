@@ -10,6 +10,7 @@
 #ifndef LLVM_IR_REPO_TICKET_H
 #define LLVM_IR_REPO_TICKET_H
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/MD5.h"
@@ -33,10 +34,13 @@ namespace ticketmd {
 using DigestType = MD5::MD5Result;
 static constexpr size_t DigestSize =
     std::tuple_size<decltype(DigestType::Bytes)>::value;
-using DependenciesType = SmallVector<const GlobalObject *, 1>;
-using DigestAndDependencies = std::pair<DigestType, DependenciesType>;
+using DependenciesType = SmallSet<const GlobalObject *, 1>;
+using ContributionsType = SmallSet<const GlobalVariable *, 1>;
 /// Map GO to a unique number in the function call graph.
 using GOStateMap = llvm::DenseMap<const GlobalObject *, unsigned>;
+/// A pair of the global object's dependencies and a bool which is true if
+/// GO's hash value has been updated.
+using GODigestState = std::pair<const DependenciesType &, bool>;
 
 const Constant *getAliasee(const GlobalAlias *GA);
 /// Set global object ticket metadata value and add this to the module level
@@ -57,14 +61,21 @@ struct GONumber {
 struct GOInfo {
   /// GO's initial hash value which does not include the hash of its dependents.
   DigestType InitialDigest;
-  /// GO's dependent global objects.
+  /// A set of global objects which the GO's hash depenendent on.
   DependenciesType Dependencies;
+  /// A set of global variables which the GO's hash contributed to.
+  ContributionsType Contributions;
 
-  GOInfo(DigestType &&Digest, DependenciesType &&Dependencies)
-      : InitialDigest(std::move(Digest)),
-        Dependencies(std::move(Dependencies)) {}
+  GOInfo() = default;
+  GOInfo(DigestType &&Digest, DependenciesType &&Dependencies,
+         ContributionsType &&Contributions)
+      : InitialDigest(std::move(Digest)), Dependencies(std::move(Dependencies)),
+        Contributions(std::move(Contributions)) {}
 };
 using GOInfoMap = DenseMap<const GlobalObject *, GOInfo>;
+
+/// A map from a global variable (GV) to the contibutions.
+using GVInfoMap = DenseMap<const GlobalVariable *, DependenciesType>;
 
 /// A tuple containing the global object information and two unsigned values
 /// which are the number of global variables and functions respectively.
@@ -78,9 +89,13 @@ using ModuleTuple = std::tuple<GOInfoMap, unsigned, unsigned>;
 ///
 template <typename GlobalType>
 GOInfoMap::const_iterator
-calculateInitialDigestAndDependencies(const GlobalType *G, GOInfoMap &GOI) {
-  DigestAndDependencies Result = calculateDigestAndDependencies(G);
-  return GOI.try_emplace(G, std::move(Result.first), std::move(Result.second))
+calculateInitialDigestAndDependenciesAndContributions(const GlobalType *G,
+                                                      GOInfoMap &GOI) {
+  GOInfo Result = calculateDigestAndDependenciesAndContributions(G);
+  return GOI
+      .try_emplace(G, std::move(Result.InitialDigest),
+                   std::move(Result.Dependencies),
+                   std::move(Result.Contributions))
       .first;
 }
 
