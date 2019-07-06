@@ -743,13 +743,13 @@ DispatcherCollectionType RepoObjectWriter::buildFragmentData(
     switch (Content->kind) {
     case pstore::repo::section_kind::bss:
       Dispatcher =
-          std::make_unique<pstore::repo::bss_section_creation_dispatcher>(
+          llvm::make_unique<pstore::repo::bss_section_creation_dispatcher>(
               Content.get());
       break;
     case pstore::repo::section_kind::debug_line:
       // TODO: record the CU's debug line header first, then point this section
       // to it.
-      Dispatcher = std::make_unique<
+      Dispatcher = llvm::make_unique<
           pstore::repo::debug_line_section_creation_dispatcher>(
           DebugLineHeaderExtent, Content.get());
       break;
@@ -758,7 +758,7 @@ DispatcherCollectionType RepoObjectWriter::buildFragmentData(
       break;
     default:
       Dispatcher =
-          std::make_unique<pstore::repo::generic_section_creation_dispatcher>(
+          llvm::make_unique<pstore::repo::generic_section_creation_dispatcher>(
               Content->kind, Content.get());
     }
     Dispatchers.emplace_back(std::move(Dispatcher));
