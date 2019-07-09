@@ -308,7 +308,7 @@ private:
   void addContributionsFromCallInvoke(const T *Instruction) {
     for (unsigned i = 0, ie = Instruction->getNumArgOperands(); i != ie; ++i) {
       if (auto *GV = getAddressFromValue(Instruction->getArgOperand(i))) {
-        FnHash.getContributions().insert(GV);
+        FnHash.getContributions().emplace_back(GV);
       }
     }
   }
