@@ -200,7 +200,7 @@ std::tuple<bool, unsigned, unsigned> generateTicketMDs(Module &M) {
     updateDigestUseCallDependencies(&GO, Hash, Visited, GOIMap, Helper);
     for (const auto GV : GOIMap[&GO].Contributions) {
       // Record GO's possible contributions.
-      GVIMap[GV].insert(&GO);
+      GVIMap[GV].emplace_back(&GO);
     }
 
     MD5::MD5Result Digest;

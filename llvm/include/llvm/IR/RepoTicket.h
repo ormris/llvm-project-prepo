@@ -10,7 +10,7 @@
 #ifndef LLVM_IR_REPO_TICKET_H
 #define LLVM_IR_REPO_TICKET_H
 
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/MD5.h"
@@ -34,8 +34,8 @@ namespace ticketmd {
 using DigestType = MD5::MD5Result;
 static constexpr size_t DigestSize =
     std::tuple_size<decltype(DigestType::Bytes)>::value;
-using DependenciesType = SmallSet<const GlobalObject *, 1>;
-using ContributionsType = SmallSet<const GlobalVariable *, 1>;
+using DependenciesType = SmallVector<const GlobalObject *, 1>;
+using ContributionsType = SmallVector<const GlobalVariable *, 1>;
 /// Map GO to a unique number in the function call graph.
 using GOStateMap = llvm::DenseMap<const GlobalObject *, unsigned>;
 /// A pair of the global object's dependencies and a bool which is true if

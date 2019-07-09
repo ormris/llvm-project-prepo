@@ -329,7 +329,7 @@ void HashCalculator::hashGlobalValue(const GlobalValue *V) {
   if (auto *GO = dyn_cast<GlobalObject>(V)) {
     // Push GO into the dependent list if it is not a declaration.
     if (!GO->isDeclaration())
-      getDependencies().insert(GO);
+      getDependencies().emplace_back(GO);
   }
 }
 
@@ -556,7 +556,7 @@ void FunctionHashCalculator::hashInstruction(const Instruction *V,
     FnHash.hashOrdering(SI->getOrdering());
     update(SI->getSyncScopeID());
     if (auto *GV = getStoreAddress(SI)) {
-      FnHash.getContributions().insert(GV);
+      FnHash.getContributions().emplace_back(GV);
     }
     return;
   }
