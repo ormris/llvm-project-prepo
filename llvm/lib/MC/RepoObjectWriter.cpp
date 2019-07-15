@@ -79,6 +79,12 @@ private:
   // TicketNode metadata).
   std::map<ticketmd::DigestType, DenseSet<const TicketNode *>> Dependents;
 
+  // A mapping of a fragment name address to its fragment initial digest. The
+  // map only contains the fragment that has dependents.
+  std::map<pstore::typed_address<pstore::indirect_string>,
+           pstore::repo::compilation_member *>
+      FragmentNameToDigest;
+
   // Note that I don't use StringMap because we take pointers into this
   // structure that must survive insertion.
   // TODO: Compare the performance between std::map and std::unordered_map. If
@@ -124,9 +130,10 @@ private:
   pstore::extent<std::uint8_t>
   writeDebugLineHeader(TransactionType &Transaction, ContentsType &Fragments);
 
+  void updateFragmentDigest(ContentsType &Fragments);
+
   pstore::index::digest
-  updateFragmentDigest(const ticketmd::DigestType &InitialHash,
-                       FragmentContentsType &FragmentContent);
+  getFragmentDigest(FragmentContentsType &FragmentContent);
 
 public:
   RepoObjectWriter(std::unique_ptr<MCRepoObjectTargetWriter> MOTW,
@@ -276,13 +283,14 @@ void RepoObjectWriter::recordRelocation(MCAssembler &Asm,
   const MCSymbolRefExpr *RefA = Target.getSymA();
   const auto *SymA = RefA ? cast<MCSymbolRepo>(&RefA->getSymbol()) : nullptr;
 
-  //bool ViaWeakRef = false;
+  // bool ViaWeakRef = false;
   if (SymA && SymA->isVariable()) {
     const MCExpr *Expr = SymA->getVariableValue();
     if (const auto *Inner = dyn_cast<MCSymbolRefExpr>(Expr)) {
       if (Inner->getKind() == MCSymbolRefExpr::VK_WEAKREF) {
         SymA = cast<MCSymbolRepo>(&Inner->getSymbol());
-        //ViaWeakRef = true; TODO: we're not supporting weak references at the moment.
+        // ViaWeakRef = true; TODO: we're not supporting weak references at the
+        // moment.
       }
     }
   }
@@ -454,8 +462,8 @@ void RepoObjectWriter::writeSectionData(ContentsType &Fragments,
   if (Section.isDummy()) {
     pstore::index::digest Digest{Section.hash().high(), Section.hash().low()};
     LLVM_DEBUG(dbgs() << "A dummy section: section type '"
-                      << SectionKindToRepoType(Section)
-                      << "' and digest '" << Digest.to_hex_string() << "' \n");
+                      << SectionKindToRepoType(Section) << "' and digest '"
+                      << Digest.to_hex_string() << "' \n");
 
     // The default (dummy) section must have no data, no external/internal
     // fixups.
@@ -495,8 +503,9 @@ void RepoObjectWriter::writeSectionData(ContentsType &Fragments,
   Content->xfixups.reserve(Relocs.size());
   for (auto const &Relocation : Relocs) {
     using repo_relocation_type = pstore::repo::relocation_type;
-    assert (Relocation.Type >= std::numeric_limits <repo_relocation_type>::min ()
-            && Relocation.Type <= std::numeric_limits <repo_relocation_type>::max ());
+    assert(Relocation.Type >=
+               std::numeric_limits<repo_relocation_type>::min() &&
+           Relocation.Type <= std::numeric_limits<repo_relocation_type>::max());
 
     MCSymbolRepo const *const Symbol = Relocation.Symbol;
     if (Symbol->isInSection()) {
@@ -553,9 +562,9 @@ void RepoObjectWriter::buildDependents(ContentsType &Fragments,
       // The corresponding compilation_member lies inside of Tickets.
       assert(TN->CorrespondingCompilationMember >= Tickets.data() &&
              TN->CorrespondingCompilationMember <= &Tickets.back());
-      // Record the ticket index in the fragment dependents here. Once the ticket
-      // file is stored into the repository,  the fragment dependents are updated
-      // from the ticket index to the ticket address in the repository.
+      // Record the ticket index in the fragment dependents here. Once the
+      // ticket file is stored into the repository,  the fragment dependents are
+      // updated from the ticket index to the ticket address in the repository.
       D.push_back(pstore::typed_address<pstore::repo::compilation_member>::make(
           TN->CorrespondingCompilationMember - Tickets.data()));
     }
@@ -629,8 +638,8 @@ StringRef streamPath(raw_fd_ostream &Stream, StringStorage &ResultPath) {
   std::error_code ErrorCode =
       sys::fs::getPathFromOpenFD(Stream.get_fd(), ResultPath);
   if (ErrorCode) {
-    report_fatal_error("TicketNode: Invalid output file path: " +
-                       ErrorCode.message() + ".");
+    report_fatal_error(
+        "TicketNode: Invalid output file path: " + ErrorCode.message() + ".");
   }
   llvm::sys::path::remove_filename(ResultPath);
   StringRef OutputFile = ResultPath.str();
@@ -721,10 +730,11 @@ pstore::index::digest RepoObjectWriter::buildCompilationRecord(
 static bool isExistingTicket(const pstore::database &Db,
                              const pstore::index::digest &CompilationDigest) {
   if (auto TicketIndex =
-          pstore::index::get_index<pstore::trailer::indices::compilation>(Db,
-                                                                     false)) {
+          pstore::index::get_index<pstore::trailer::indices::compilation>(
+              Db, false)) {
     if (TicketIndex->find(Db, CompilationDigest) != TicketIndex->end(Db)) {
-      LLVM_DEBUG(dbgs() << "compilation " << CompilationDigest << " exists. skipping\n");
+      LLVM_DEBUG(dbgs() << "compilation " << CompilationDigest
+                        << " exists. skipping\n");
       return true;
     }
   }
@@ -773,7 +783,8 @@ DispatcherCollectionType RepoObjectWriter::buildFragmentData(
 }
 
 void RepoObjectWriter::updateDependents(
-    pstore::repo::dependents &Dependent, const pstore::repo::compilation &Compilation,
+    pstore::repo::dependents &Dependent,
+    const pstore::repo::compilation &Compilation,
     pstore::typed_address<pstore::repo::compilation> addr) {
   for (auto &member : Dependent) {
     // Currently, dependent member value is the index in the Ticket.
@@ -781,7 +792,7 @@ void RepoObjectWriter::updateDependents(
     assert(index < Compilation.size());
     auto offset = reinterpret_cast<std::uintptr_t>(&Compilation[index]) -
                   reinterpret_cast<std::uintptr_t>(&Compilation);
-	// Update the dependent member to record the ticket address.
+    // Update the dependent member to record the ticket address.
     member = pstore::typed_address<pstore::repo::compilation_member>::make(
         addr.absolute() + offset);
   }
@@ -850,40 +861,48 @@ RepoObjectWriter::writeDebugLineHeader(TransactionType &Transaction,
   return {};
 }
 
-pstore::index::digest RepoObjectWriter::updateFragmentDigest(
-    const ticketmd::DigestType &InitialDigest,
-    FragmentContentsType &FragmentContent) {
-  MD5 FragmentHash;
-  MD5::MD5Result FragmentDigest = InitialDigest;
-  const bool HasDependents = !FragmentContent.Dependents.empty();
-  if (HasDependents) {
-    FragmentHash.update(InitialDigest.Bytes);
-    // Accumulate the dependents' hash to this fragment.
-    for (const auto Dependent : FragmentContent.Dependents) {
-      const auto &DependentCompilationMember =
-          CompilationMembers[Dependent.absolute()];
-      // Accumulate the dependent's digest.
-      FragmentHash.update(makeByteArrayRef(DependentCompilationMember.digest));
-      // Accumulate the dependent's name.
-      FragmentHash.update(stringViewAsRef(
-          reinterpret_cast<const ModuleNamesContainer::value_type *>(
-              DependentCompilationMember.name.absolute())
-              ->first));
+void RepoObjectWriter::updateFragmentDigest(ContentsType &Fragments) {
+  for (auto &Fragment : Fragments) {
+    MD5 FragmentHash;
+    auto &InitialDigest = Fragment.first;
+    auto &FragmentContent = Fragment.second;
+    MD5::MD5Result FragmentDigest = InitialDigest;
+    const bool HasDependents = !Fragment.second.Dependents.empty();
+    if (HasDependents) {
+      FragmentHash.update(InitialDigest.Bytes);
+      // Accumulate the dependents' hash to this fragment.
+      for (const auto Dependent : FragmentContent.Dependents) {
+        const auto &DependentCompilationMember =
+            CompilationMembers[Dependent.absolute()];
+        // Accumulate the dependent's digest.
+        FragmentHash.update(
+            makeByteArrayRef(DependentCompilationMember.digest));
+        // Accumulate the dependent's name.
+        FragmentHash.update(stringViewAsRef(
+            reinterpret_cast<const ModuleNamesContainer::value_type *>(
+                DependentCompilationMember.name.absolute())
+                ->first));
+      }
+      FragmentHash.final(FragmentDigest);
     }
-    FragmentHash.final(FragmentDigest);
-  }
 
-  auto const Key =
-      pstore::index::digest{FragmentDigest.high(), FragmentDigest.low()};
+    auto const Key =
+        pstore::index::digest{FragmentDigest.high(), FragmentDigest.low()};
 
-  if (HasDependents) {
-    // Update the corresponding compilation member in CompilationMembers.
-    for (const auto It : FragmentContent.CorrespondingCompilationMembersIts) {
-      It->digest = Key;
+    if (HasDependents) {
+      // Update the corresponding compilation member in CompilationMembers.
+      for (const auto It : FragmentContent.CorrespondingCompilationMembersIts) {
+        It->digest = Key;
+        FragmentNameToDigest[It->name] = &*It;
+      }
     }
   }
+}
 
-  return Key;
+pstore::index::digest
+RepoObjectWriter::getFragmentDigest(FragmentContentsType &FragmentContent) {
+  assert(!FragmentContent.CorrespondingCompilationMembersIts.empty());
+  return FragmentContent.CorrespondingCompilationMembersIts.front()->digest;
 }
 
 uint64_t RepoObjectWriter::writeObject(MCAssembler &Asm,
@@ -959,9 +978,12 @@ uint64_t RepoObjectWriter::writeObject(MCAssembler &Asm,
                          pstore::extent<pstore::repo::fragment>>
           RepoFragments;
 
+      // Update the fragment's digest if it includes the dependent fragments.
+      updateFragmentDigest(Fragments);
+
       for (auto &Fragment : Fragments) {
 
-        auto const Key = updateFragmentDigest(Fragment.first, Fragment.second);
+        auto const Key = getFragmentDigest(Fragment.second);
 
         // The fragment creation APIs require that the input sections are sorted
         // by section_content::type. This guarantees that for them.
@@ -976,16 +998,30 @@ uint64_t RepoObjectWriter::writeObject(MCAssembler &Asm,
         auto SEnd =
             pstore::make_pointee_adaptor(Fragment.second.Sections.end());
 
+        auto &D = Fragment.second.Dependents;
         // The name field of each of the external fixups is pointing into the
         // 'Names' map. Here we turn that into the pstore address of the string.
-        std::for_each(SBegin, SEnd, [](pstore::repo::section_content &Section) {
-          for (auto &XFixup : Section.xfixups) {
-            auto MNC =
-                reinterpret_cast<ModuleNamesContainer::value_type const *>(
-                    XFixup.name.absolute());
-            XFixup.name = MNC->second;
-          }
-        });
+        std::for_each(
+            SBegin, SEnd,
+            [&NameToDigest = FragmentNameToDigest, &D,
+             &CompilationMembers =
+                 CompilationMembers](pstore::repo::section_content &Section) {
+              for (auto &XFixup : Section.xfixups) {
+                auto MNC =
+                    reinterpret_cast<ModuleNamesContainer::value_type const *>(
+                        XFixup.name.absolute());
+
+                // Update the dependents
+                if (NameToDigest.count(XFixup.name)) {
+                  D.push_back(
+                      pstore::typed_address<pstore::repo::compilation_member>::
+                          make(NameToDigest[XFixup.name] -
+                               CompilationMembers.data()));
+                }
+
+                XFixup.name = MNC->second;
+              }
+            });
 
         // Build a collection of dispatchers: one per section in the final
         // fragment. The dispatcher's job is to understand how to construct an
@@ -1069,7 +1105,8 @@ uint64_t RepoObjectWriter::writeObject(MCAssembler &Asm,
       auto CExtent = pstore::repo::compilation::alloc(
           Transaction, OutputPathAddr, TripleAddr, CompilationMembers.begin(),
           CompilationMembers.end());
-      CompilationIndex->insert(Transaction, std::make_pair(TicketDigest, CExtent));
+      CompilationIndex->insert(Transaction,
+                               std::make_pair(TicketDigest, CExtent));
 
       // Update the dependents for each fragment index->address
       for (auto &KV : RepoFragments) {
@@ -1077,7 +1114,8 @@ uint64_t RepoObjectWriter::writeObject(MCAssembler &Asm,
             pstore::repo::fragment::load(Transaction, KV.second);
         if (auto Dependent =
                 Fragment->atp<pstore::repo::section_kind::dependent>()) {
-          updateDependents(*Dependent, *pstore::repo::compilation::load(Db, CExtent),
+          updateDependents(*Dependent,
+                           *pstore::repo::compilation::load(Db, CExtent),
                            CExtent.addr);
         }
       }
