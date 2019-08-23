@@ -26,4 +26,6 @@ entry:
   ret void
 }
 
-;CHECK:      !0 = !TicketNode(name: "test", digest: [16 x i8] c"{{.*}}", linkage: external, pruned: false)
+;CHECK:      !0 = !TicketNode(name: "test",
+;CHECK-NEXT: !1 = !TicketNode(name: ".input_str",
+;CHECK-NEXT: !2 = !TicketNode(name: "str",
