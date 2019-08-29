@@ -371,7 +371,7 @@ void OutputSection<ELFT>::append(pstore::repo::compilation_member const &CM,
   for (pstore::repo::external_fixup const &XFixup :
        pstore::repo::section_xfixups(*Fragment, SectionKind)) {
     auto const TargetName = pstore::indirect_string::read(Db_, XFixup.name);
-    LLVM_DEBUG(dbgs() << "  generating relocation TO '" << TargetName << '\n');
+    LLVM_DEBUG(dbgs() << "  generating relocation TO '" << TargetName << "'\n");
     Relocations_.emplace_back(Symbols.insertSymbol(TargetName, XFixup.type),
                               XFixup.type, XFixup.offset + SectionSize_,
                               XFixup.addend);
