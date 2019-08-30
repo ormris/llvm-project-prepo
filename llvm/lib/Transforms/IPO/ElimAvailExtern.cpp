@@ -19,6 +19,7 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/RepoTicket.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
@@ -30,12 +31,23 @@ using namespace llvm;
 STATISTIC(NumFunctions, "Number of functions removed");
 STATISTIC(NumVariables, "Number of global variables removed");
 
+static bool skipGlobalObject(const GlobalObject &GO) {
+  if (const MDNode *const T = GO.getMetadata(LLVMContext::MD_repo_ticket)) {
+    if (const TicketNode *const MD = dyn_cast<TicketNode>(T)) {
+      return MD->getLinkage() != GlobalValue::AvailableExternallyLinkage;
+    }
+  }
+  return false;
+}
+
 static bool eliminateAvailableExternally(Module &M) {
   bool Changed = false;
 
   // Drop initializers of available externally global variables.
   for (GlobalVariable &GV : M.globals()) {
     if (!GV.hasAvailableExternallyLinkage())
+      continue;
+    if (skipGlobalObject(GV))
       continue;
     if (GV.hasInitializer()) {
       Constant *Init = GV.getInitializer();
@@ -52,6 +64,8 @@ static bool eliminateAvailableExternally(Module &M) {
   // Drop the bodies of available externally functions.
   for (Function &F : M) {
     if (!F.hasAvailableExternallyLinkage())
+      continue;
+    if (skipGlobalObject(F))
       continue;
     if (!F.isDeclaration())
       // This will set the linkage to external
