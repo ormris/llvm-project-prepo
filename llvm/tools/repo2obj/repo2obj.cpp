@@ -54,10 +54,12 @@ cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"),
                                     cl::value_desc("filename"),
                                     cl::init("./a.out"));
 
+constexpr auto program_name = "[repo2obj] ";
+
 } // end anonymous namespace
 
 LLVM_ATTRIBUTE_NORETURN static void error(Twine Message) {
-  errs() << Message << "\n";
+  errs() << program_name << Message << "\n";
   exit(EXIT_FAILURE);
 }
 
@@ -85,7 +87,7 @@ void SpecialNames::initialize(const pstore::database &Db, GeneratedNames &Names)
   std::shared_ptr<pstore::index::name_index const> const NameIndex =
       pstore::index::get_index<pstore::trailer::indices::name>(Db);
   if (!NameIndex) {
-    errs() << "Warning: name index was not found.\n";
+    errs() << program_name << "Warning: name index was not found.\n";
   } else {
     // Get the address of the global tors names from the names set. If the
     // string is missing, use null since we know that can't appear as a ticket's
@@ -333,14 +335,14 @@ int main(int argc, char *argv[]) {
   std::unique_ptr<ToolOutputFile> Out(
       new ToolOutputFile(OutputFilename, EC, sys::fs::F_None));
   if (EC) {
-    error("repo2obj: Error opening '" + OutputFilename + "': " + EC.message());
+    error("Error opening '" + OutputFilename + "': " + EC.message());
   }
 
   ErrorOr<pstore::index::digest> DigestOrError =
       llvm::repo::getTicketIdFromFile(TicketPath);
   if (!DigestOrError) {
-    errs() << "Error: '" << TicketPath << "' ("
-           << DigestOrError.getError().message() << ")\n";
+    error("Error: '" + TicketPath + "' (" + DigestOrError.getError().message() +
+          ")");
     return EXIT_FAILURE;
   }
 
@@ -351,19 +353,22 @@ int main(int argc, char *argv[]) {
   std::shared_ptr<pstore::index::compilation_index const> const CompilationIndex =
       pstore::index::get_index<pstore::trailer::indices::compilation>(Db);
   if (!CompilationIndex) {
-    errs() << "Error: compilation index was not found.\n";
+    error("Error: compilation index was not found.");
     return EXIT_FAILURE;
   }
   std::shared_ptr<pstore::index::fragment_index const> const FragmentIndex =
       pstore::index::get_index<pstore::trailer::indices::fragment>(Db);
   if (!FragmentIndex) {
-    errs() << "Error: fragment index was not found.\n";
+    error("Error: fragment index was not found.");
     return EXIT_FAILURE;
   }
 
   auto CompilationPos = CompilationIndex->find(Db, Digest);
   if (CompilationPos == CompilationIndex->end(Db)) {
-    errs() << "Error: compilation " << Digest << " was not found.\n";
+    std::string DigestStr;
+    raw_string_ostream SS{DigestStr};
+    SS << Digest;
+    error("Error: compilation " + SS.str() + " was not found.");
     return EXIT_FAILURE;
   }
 
