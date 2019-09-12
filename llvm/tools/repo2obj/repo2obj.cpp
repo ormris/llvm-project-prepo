@@ -395,7 +395,8 @@ int main(int argc, char *argv[]) {
                 OutputSection<ELFT>::SectionInfo{});
 
       auto const IsLinkOnce =
-          CM.linkage == pstore::repo::linkage_type::linkonce;
+          CM.linkage == pstore::repo::linkage_type::link_once_any ||
+          CM.linkage == pstore::repo::linkage_type::link_once_odr;
 
       auto const Fragment = pstore::repo::fragment::load(Db, CM.fext);
 

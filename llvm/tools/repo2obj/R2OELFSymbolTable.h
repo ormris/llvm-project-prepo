@@ -131,9 +131,13 @@ private:
 template <typename ELFT>
 unsigned SymbolTable<ELFT>::linkageToELFBinding(pstore::repo::linkage_type L) {
   switch (L) {
+  case pstore::repo::linkage_type::internal_no_symbol:
   case pstore::repo::linkage_type::internal:
     return llvm::ELF::STB_LOCAL;
-  case pstore::repo::linkage_type::linkonce:
+  case pstore::repo::linkage_type::link_once_any:
+  case pstore::repo::linkage_type::link_once_odr:
+  case pstore::repo::linkage_type::weak_any:
+  case pstore::repo::linkage_type::weak_odr:
     return llvm::ELF::STB_WEAK;
   default:
     return llvm::ELF::STB_GLOBAL;
@@ -312,8 +316,12 @@ auto SymbolTable<ELFT>::sort() -> std::vector<Value *> {
   std::stable_sort(
       std::begin(OrderedSymbols), std::end(OrderedSymbols),
       [](Value const *const A, Value const *const B) {
-        return A->linkage() == pstore::repo::linkage_type::internal &&
-               B->linkage() != pstore::repo::linkage_type::internal;
+        const auto ALinkage = A->linkage();
+        const auto BLinkage = B->linkage();
+        return (ALinkage == pstore::repo::linkage_type::internal ||
+                ALinkage == pstore::repo::linkage_type::internal_no_symbol) &&
+               (BLinkage != pstore::repo::linkage_type::internal &&
+                BLinkage != pstore::repo::linkage_type::internal_no_symbol);
       });
 
   // Finally tell the symbols about their indices.
@@ -338,7 +346,9 @@ SymbolTable<ELFT>::firstNonLocal(std::vector<Value *> const &OrderedSymbols) {
     auto const Step = Count / 2;
     std::advance(It, Step);
 
-    if ((*It)->linkage() == pstore::repo::linkage_type::internal) {
+    const auto Linkage = (*It)->linkage();
+    if (Linkage == pstore::repo::linkage_type::internal ||
+        Linkage == pstore::repo::linkage_type::internal_no_symbol) {
       First = ++It;
       Count -= Step + 1;
     } else {

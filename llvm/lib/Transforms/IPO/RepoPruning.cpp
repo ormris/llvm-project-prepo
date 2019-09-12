@@ -68,8 +68,16 @@ GlobalValue::LinkageTypes toGVLinkage(pstore::repo::linkage_type L) {
   switch (L) {
   case pstore::repo::linkage_type::external:
     return GlobalValue::ExternalLinkage;
-  case pstore::repo::linkage_type::linkonce:
+  case pstore::repo::linkage_type::link_once_any:
     return GlobalValue::LinkOnceAnyLinkage;
+  case pstore::repo::linkage_type::link_once_odr:
+    return GlobalValue::LinkOnceODRLinkage;
+  case pstore::repo::linkage_type::weak_any:
+    return GlobalValue::WeakAnyLinkage;
+  case pstore::repo::linkage_type::weak_odr:
+    return GlobalValue::WeakODRLinkage;
+  case pstore::repo::linkage_type::internal_no_symbol:
+    return GlobalValue::PrivateLinkage;
   case pstore::repo::linkage_type::internal:
     return GlobalValue::InternalLinkage;
   case pstore::repo::linkage_type::common:
