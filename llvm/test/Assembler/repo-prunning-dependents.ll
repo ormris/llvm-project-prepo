@@ -28,4 +28,4 @@ entry:
 
 ;CHECK:      !TicketNode(name: "test",
 ;CHECK-NEXT: !TicketNode(name: ".input_str",
-;CHECK-NEXT: !TicketNode(name: "str",
+;CHECK-NEXT: !TicketNode(name: "str.

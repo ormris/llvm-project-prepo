@@ -35,6 +35,8 @@ namespace ticketmd {
 using DigestType = MD5::MD5Result;
 static constexpr size_t DigestSize =
     std::tuple_size<decltype(DigestType::Bytes)>::value;
+static constexpr ticketmd::DigestType NullDigest{
+    std::array<uint8_t, DigestSize>{{0}}};
 using GOVec = SmallVector<const GlobalObject *, 1>;
 /// Map GO to a unique number in the function call graph.
 using GOStateMap = llvm::DenseMap<const GlobalObject *, unsigned>;

@@ -875,8 +875,12 @@ static MCSectionRepo *selectRepoSectionForGlobal(MCContext &Ctx,
     // Add new created digest to the TicketNodes.
     assert(!GO->getMetadata(LLVMContext::MD_repo_ticket) &&
            "TicketNode should be NULL!");
+    const std::string SymbolName = MCSymbolRepo::getFullName(
+        Ctx, GO->getName(),
+        GlobalValue::isLocalLinkage(GO->getLinkage()) ? Result.first
+                                                      : ticketmd::NullDigest);
     auto TN = TicketNode::getIfExists(
-        GO->getParent()->getContext(), GO->getName(), Result.first,
+        GO->getParent()->getContext(), std::move(SymbolName), Result.first,
         GO->getLinkage(), GO->getVisibility(), true);
     if (!TN) {
       MDBuilder MDB(GO->getParent()->getContext());

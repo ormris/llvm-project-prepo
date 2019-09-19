@@ -25,7 +25,7 @@ declare i32 @puts(i8* nocapture readonly) local_unnamed_addr
 
 !0 = !TicketNode(name: "main", digest: [16 x i8] c"G\A3\F3c\9D\10\142\9D\9F\89l\BCG\1DV", linkage: external, visibility: default, pruned: false)
 !1 = !TicketNode(name: "a", digest: [16 x i8] c"r\D5\E2\FD\BC\F9\97\AB\1E\03\CFr\C8\AB\A3\14", linkage: external, visibility: default, pruned: true)
-!2 = !TicketNode(name: "str", digest: [16 x i8] c"\A7\F3w\15S\7FP|b\09\FE\FCsg\9F\01", linkage: private, visibility: default, pruned: true)
+!2 = !TicketNode(name: "str.a7f37715537f507c6209fefc73679f01", digest: [16 x i8] c"\A7\F3w\15S\7FP|b\09\FE\FCsg\9F\01", linkage: private, visibility: default, pruned: true)
 
 ; CHECK:     name    : str
 ; CHECK:     name    : str

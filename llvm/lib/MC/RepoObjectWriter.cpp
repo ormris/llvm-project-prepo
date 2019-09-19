@@ -79,6 +79,10 @@ private:
   // TicketNode metadata).
   std::map<ticketmd::DigestType, DenseSet<const TicketNode *>> Dependents;
 
+  // A mapping of a dependent TicketNode to its new symbol name which is used in
+  // the string index, compilation member and fragment in the database.
+  DenseMap<const TicketNode *, std::string> RenamesTN;
+
   // Note that I don't use StringMap because we take pointers into this
   // structure that must survive insertion.
   // TODO: Compare the performance between std::map and std::unordered_map. If
@@ -133,6 +137,7 @@ public:
     Renames.clear();
     Relocations.clear();
     Dependents.clear();
+    RenamesTN.clear();
     MCObjectWriter::reset();
   }
 
@@ -158,10 +163,10 @@ public:
 
   void buildDependents(ContentsType &Contents, const TicketType &Tickets) const;
 
-  static pstore::raw_sstring_view
-  getSymbolName(const MCAssembler &Asm, const TicketNode &TicketMember,
-                const ModuleNamesContainer &Names,
-                NamesWithPrefixContainer &Symbols);
+  pstore::raw_sstring_view getSymbolName(const MCAssembler &Asm,
+                                         const TicketNode &TicketMember,
+                                         const ModuleNamesContainer &Names,
+                                         NamesWithPrefixContainer &Symbols);
 
   pstore::index::digest buildCompilationRecord(
       const pstore::database &Db, const MCAssembler &Asm,
@@ -300,11 +305,24 @@ void RepoObjectWriter::recordRelocation(MCAssembler &Asm,
 
     RenamedSymA->setUsedInReloc();
   }
-  Relocations[&FixupSection].emplace_back(FixupOffset, RenamedSymA, Type,
-                                          Addend, SymA, OriginalC);
 
-  if (auto const *Dependent = SymA->CorrespondingTicketNode)
+  StringRef UsedSymbolName = RenamedSymA->getName();
+  if (auto const *Dependent = SymA->CorrespondingTicketNode) {
     Dependents[FixupSection.hash()].insert(Dependent);
+    if (GlobalValue::isLocalLinkage(Dependent->getLinkage())) {
+      const std::string SymbolName =
+          Dependent->getPruned()
+              ? Dependent->getNameAsString().str()
+              : MCSymbolRepo::getFullName(Ctx, UsedSymbolName,
+                                          Dependent->getDigest());
+      UsedSymbolName = StringRef(
+          RenamesTN.insert(std::make_pair(Dependent, std::move(SymbolName)))
+              .first->second);
+    }
+  }
+
+  Relocations[&FixupSection].emplace_back(
+      FixupOffset, RenamedSymA, Type, Addend, SymA, OriginalC, UsedSymbolName);
 }
 
 namespace {
@@ -516,7 +534,7 @@ void RepoObjectWriter::writeSectionData(ContentsType &Fragments,
     // performed with the transaction lock held).
     auto It =
         Names
-            .emplace(stringRefAsView(Relocation.Symbol->getName()),
+            .emplace(stringRefAsView(Relocation.UsedSymbolName),
                      pstore::typed_address<pstore::indirect_string>::null())
             .first;
 
@@ -602,22 +620,30 @@ pstore::raw_sstring_view RepoObjectWriter::getSymbolName(
     const MCAssembler &Asm, const TicketNode &TicketMember,
     const ModuleNamesContainer &Names, NamesWithPrefixContainer &Symbols) {
 
-  if (!GlobalValue::isPrivateLinkage(TicketMember.getLinkage())) {
+  if (!GlobalValue::isLocalLinkage(TicketMember.getLinkage())) {
     StringRef S = TicketMember.getNameAsString();
     return stringRefAsView(S);
   }
 
-  SmallString<256> Buf;
-  const StringRef NameRef =
-      (Twine(Asm.getContext().getAsmInfo()->getPrivateGlobalPrefix()) +
-       Twine(TicketMember.getNameAsString()))
-          .toStringRef(Buf);
+  std::string SymbolName;
+  if (TicketMember.getPruned()) {
+    SymbolName = TicketMember.getNameAsString().str();
+  } else {
+    auto RenamesIt = RenamesTN.find(&TicketMember);
+    if (RenamesIt == RenamesTN.end()) {
+      SymbolName = MCSymbolRepo::getFullName(Asm.getContext(),
+                                             TicketMember.getNameAsString(),
+                                             ticketmd::NullDigest);
+    } else {
+      SymbolName = RenamesIt->second;
+    }
+  }
 
-  auto It = Names.find(stringRefAsView(NameRef));
+  auto It = Names.find(stringRefAsView(StringRef(SymbolName)));
   if (It != Names.end())
     return It->first;
 
-  Symbols.push_back(llvm::make_unique<std::string>(NameRef.str()));
+  Symbols.push_back(llvm::make_unique<std::string>(std::move(SymbolName)));
   return pstore::make_sstring_view(*Symbols.back().get());
 }
 
@@ -804,10 +830,7 @@ pstore::uint128 get_hash_key(ArrayRef<uint8_t> const &arr) {
 pstore::extent<std::uint8_t>
 RepoObjectWriter::writeDebugLineHeader(TransactionType &Transaction,
                                        ContentsType &Fragments) {
-
-  static ticketmd::DigestType const NullDigest{std::array<uint8_t, 16>{{0}}};
-
-  auto NullFragmentPos = Fragments.find(NullDigest);
+  auto NullFragmentPos = Fragments.find(ticketmd::NullDigest);
   if (NullFragmentPos != Fragments.end()) {
     auto End = NullFragmentPos->second.Sections.end();
     // TODO: is there a reason why these aren't keyed on the section type?

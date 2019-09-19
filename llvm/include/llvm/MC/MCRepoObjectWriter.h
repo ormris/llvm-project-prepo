@@ -36,19 +36,23 @@ struct RepoRelocationEntry {
   const MCSymbolRepo
       *OriginalSymbol;     // The original value of Symbol if we changed it.
   uint64_t OriginalAddend; // The original value of addend.
+  StringRef UsedSymbolName; // The Symbol name is used in the relocations.
 
   RepoRelocationEntry(uint64_t Offset, const MCSymbolRepo *Symbol,
                       unsigned Type, uint64_t Addend,
                       const MCSymbolRepo *OriginalSymbol,
-                      uint64_t OriginalAddend)
+                      uint64_t OriginalAddend, const StringRef UsedSymbolName)
       : Offset(Offset), Symbol(Symbol), Type(Type), Addend(Addend),
-        OriginalSymbol(OriginalSymbol), OriginalAddend(OriginalAddend) {}
+        OriginalSymbol(OriginalSymbol), OriginalAddend(OriginalAddend),
+        UsedSymbolName(UsedSymbolName) {}
 
   void print(raw_ostream &Out) const {
     Out << "Off=" << Offset << ", Sym=" << Symbol << ", Type=" << Type
         << ", Addend=" << Addend << ", OriginalSymbol=" << OriginalSymbol
-        << ", OriginalAddend=" << OriginalAddend;
+        << ", OriginalAddend=" << OriginalAddend
+        << ", UsedSymbolName=" << UsedSymbolName;
   }
+
   void dump() const { print(errs()); }
 };
 

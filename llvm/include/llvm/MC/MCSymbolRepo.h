@@ -23,6 +23,23 @@ public:
 
   // A pointer to the TiketNode metadata of the corresponding GlobalObject.
   const TicketNode *CorrespondingTicketNode = nullptr;
+
+  // Get the symbol full name.
+  static const std::string getFullName(const MCContext &Ctx,
+                                       const StringRef InitialName,
+                                       const ticketmd::DigestType &Digest) {
+    std::string FullName;
+    StringRef PrivateGlobalPrefix = Ctx.getAsmInfo()->getPrivateGlobalPrefix();
+    FullName.reserve(PrivateGlobalPrefix.size() + InitialName.size() +
+                     ticketmd::DigestSize + 1);
+    FullName.append(PrivateGlobalPrefix);
+    FullName.append(InitialName);
+    if (Digest != ticketmd::NullDigest) {
+      FullName.append(".");
+      FullName.append(Digest.digest().str());
+    }
+    return FullName;
+  }
 };
 
 } // end namespace llvm
