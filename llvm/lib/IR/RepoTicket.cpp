@@ -77,76 +77,49 @@ const Constant *getAliasee(const GlobalAlias *GA) {
   return Target;
 }
 
-static const DependenciesType &
-updateInitialDigestAndGetDependencies(const GlobalObject *GO, MD5 &GOHash,
-                                      GOInfoMap &GOIMap, GONumber &GONum) {
-  GOInfoMap::const_iterator Pos;
+static void calculateGOInfo(const GlobalObject *GO, GOInfoMap &GOIMap) {
+
   if (const auto GV = dyn_cast<GlobalVariable>(GO)) {
-    ++GONum.VarNum;
-    Pos = calculateInitialDigestAndDependenciesAndContributions(GV, GOIMap);
+    calculateGOInfo(GV, GOIMap);
   } else if (const auto Fn = dyn_cast<Function>(GO)) {
-    ++GONum.FuncNum;
-    Pos = calculateInitialDigestAndDependenciesAndContributions(Fn, GOIMap);
+    calculateGOInfo(Fn, GOIMap);
   } else {
     llvm_unreachable("Unknown global object type!");
   }
-  GOHash.update(Pos->second.InitialDigest.Bytes);
-  return Pos->second.Dependencies;
 }
 
-GODigestState updateDigestGONumAndGetDependencies(const GlobalObject *GO,
-                                                  MD5 &GOHash,
-                                                  GOInfoMap &GOIMap,
-                                                  GONumber &GONum) {
-  auto It = GOIMap.find(GO);
-  if (It != GOIMap.end()) {
-    const GOInfo &GOInformation = It->second;
-    GOHash.update(GOInformation.InitialDigest.Bytes);
-    return {GOInformation.Dependencies, true};
-  }
-
-  return {updateInitialDigestAndGetDependencies(GO, GOHash, GOIMap, GONum),
-          true};
+// Accumulate the GO's initial digest and get its GODigestState.
+static const GODigestState
+accumulateGOInitialDigestAndGetGODigestState(const GlobalObject *GO,
+                                             MD5 &GOHash, GOInfoMap &GOIMap) {
+  const GOInfo &GOInformation = GOIMap[GO];
+  GOHash.update(GOInformation.InitialDigest.Bytes);
+  return GODigestState(GOInformation.Contributions, GOInformation.Dependencies,
+                       true);
 }
 
-GODigestState updateGODigestAndGetDependencies(const GlobalObject *GO,
-                                               MD5 &GOHash, GOInfoMap &GOIMap) {
-  if (auto GOMD = GO->getMetadata(LLVMContext::MD_repo_ticket)) {
-    if (const TicketNode *TN = dyn_cast<TicketNode>(GOMD)) {
+static GODigestState accumulateGOFinalDigestOrInitialDigestAndGetGODigestState(
+    const GlobalObject *GO, MD5 &GOHash, GOInfoMap &GOIMap) {
+  if (const auto *const GOMD = GO->getMetadata(LLVMContext::MD_repo_ticket)) {
+    if (const TicketNode *const TN = dyn_cast<TicketNode>(GOMD)) {
       DigestType D = TN->getDigest();
       GOHash.update(D.Bytes);
-      return {GOIMap
-                  .try_emplace(GO, std::move(D), DependenciesType(),
-                               ContributionsType())
-                  .first->second.Dependencies,
-              true};
+      const GOInfo &GOInformation =
+          GOIMap.try_emplace(GO, std::move(D), GOVec(), GOVec()).first->second;
+      return GODigestState(GOInformation.Contributions,
+                           GOInformation.Dependencies, true);
     }
     report_fatal_error("Failed to get TicketNode metadata!");
   }
-  GONumber GONum;
-  return {updateInitialDigestAndGetDependencies(GO, GOHash, GOIMap, GONum),
-          true};
-}
-
-GODigestState updateDigestUseContributions(const GlobalObject *GO, MD5 &GOHash,
-                                           GOInfoMap &GOIMap,
-                                           GVInfoMap GVIMap) {
-  bool Changed = false;
-  if (const auto &GV = dyn_cast<GlobalVariable>(GO)) {
-    if (GVIMap.count(GV)) {
-      GOHash.update(getTicket(GO)->getDigest().Bytes);
-      Changed = true;
-    }
-  }
-  return {GOIMap[GO].Dependencies, Changed};
+  calculateGOInfo(GO, GOIMap);
+  return accumulateGOInitialDigestAndGetGODigestState(GO, GOHash, GOIMap);
 }
 
 // Update the GO's hash value by adding the hash of its dependents.
 template <typename Function>
-static bool
-updateDigestUseCallDependencies(const GlobalObject *GO, MD5 &GOHash,
-                                GOStateMap &Visited, GOInfoMap &GOIMap,
-                                Function UpdateDigestAndGetDependencies) {
+static bool updateDigestUseDependenciesAndContributions(
+    const GlobalObject *GO, MD5 &GOHash, GOStateMap &Visited, GOInfoMap &GOIMap,
+    Function AccumulateGODigest) {
   if (GO->isDeclaration())
     return false;
 
@@ -163,91 +136,78 @@ updateDigestUseCallDependencies(const GlobalObject *GO, MD5 &GOHash,
 
   bool Changed = false;
   GOHash.update('T');
-  auto State = UpdateDigestAndGetDependencies(GO, GOHash, GOIMap);
-  Changed = Changed || State.second;
-
-  // Recursively for all the dependent global objects.
-  for (const GlobalObject *D : State.first) {
-    const llvm::Function *Fn = dyn_cast<const llvm::Function>(D);
+  auto State = AccumulateGODigest(GO, GOHash, GOIMap);
+  Changed = Changed || State.Changed;
+  // Update the GO's hash using its contributions and dependencies.
+  auto &GOContributions = State.Contributions;
+  auto &GODependencies = State.Dependencies;
+  for (const GlobalObject *const G : llvm::concat<const GlobalObject *const>(
+           make_range(GOContributions.begin(), GOContributions.end()),
+           make_range(GODependencies.begin(), GODependencies.end()))) {
+    const llvm::Function *const Fn = dyn_cast<const llvm::Function>(G);
     // if function will not be inlined, skip it
     if (Fn && Fn->hasFnAttribute(Attribute::NoInline))
       continue;
-    Changed = updateDigestUseCallDependencies(D, GOHash, Visited, GOIMap,
-                                              UpdateDigestAndGetDependencies) ||
+    Changed = updateDigestUseDependenciesAndContributions(
+                  G, GOHash, Visited, GOIMap, AccumulateGODigest) ||
               Changed;
   }
+
   return Changed;
 }
 
-// Calculate the final GO hash by adding the initial hashes of its dependents
-// and the contributions and create the ticket metadata for GOs.
+// Calculate the GOs' initial digest, dependencies, contributions and GONumber.
+std::pair<GOInfoMap, GONumber> calculateGONumAndGOIMap(Module &M) {
+  GOInfoMap GOIMap;
+  GONumber GONum;
+
+  for (auto &GV : M.globals()) {
+    if (GV.isDeclaration())
+      continue;
+    calculateGOInfo(&GV, GOIMap);
+    ++GONum.VarNum;
+  }
+  for (auto &Fn : M.functions()) {
+    if (Fn.isDeclaration())
+      continue;
+    calculateGOInfo(&Fn, GOIMap);
+    ++GONum.FuncNum;
+  }
+  return std::make_pair(std::move(GOIMap), std::move(GONum));
+}
+
 std::tuple<bool, unsigned, unsigned> generateTicketMDs(Module &M) {
   bool Changed = false;
   GONumber GONum;
   GOStateMap Visited;
+  Visited.reserve(M.size() + M.getGlobalList().size());
   GOInfoMap GOIMap;
-  GVInfoMap GVIMap;
 
+  // Calculate the GOInfoMap and GONumber.
+  std::tie(GOIMap, GONum) = calculateGONumAndGOIMap(M);
+
+#ifndef NDEBUG
+  for (auto &GI : GOIMap) {
+    LLVM_DEBUG(dbgs() << "\nGO Name:" << GI.first->getName() << "\n");
+    LLVM_DEBUG(GI.second.dump());
+  }
+#endif
+
+  // Update the GO's digest using the dependencies and the contributions.
   for (auto &GO : M.global_objects()) {
     if (GO.isDeclaration())
       continue;
     Visited.clear();
     MD5 Hash = MD5();
-    auto Helper = [&GONum](const GlobalObject *GO, MD5 &GOHash,
-                           GOInfoMap &GOIMap) {
-      return updateDigestGONumAndGetDependencies(GO, GOHash, GOIMap, GONum);
+    auto Helper = [](const GlobalObject *GO, MD5 &GOHash, GOInfoMap &GOIMap) {
+      return accumulateGOInitialDigestAndGetGODigestState(GO, GOHash, GOIMap);
     };
-    updateDigestUseCallDependencies(&GO, Hash, Visited, GOIMap, Helper);
-    for (const auto GV : GOIMap[&GO].Contributions) {
-      // Record GO's possible contributions.
-      GVIMap[GV].emplace_back(&GO);
-    }
-
+    updateDigestUseDependenciesAndContributions(&GO, Hash, Visited, GOIMap,
+                                                Helper);
     MD5::MD5Result Digest;
     Hash.final(Digest);
     set(&GO, Digest);
     Changed = true;
-  }
-
-  if (GVIMap.empty()) {
-    return std::make_tuple(Changed, GONum.VarNum, GONum.FuncNum);
-  }
-
-  // Update the GV's digest using the contributions.
-  for (auto &Entry : GVIMap) {
-    if (Entry.first->isDeclaration())
-      continue;
-
-    MD5 GVHash = MD5();
-    GVHash.update(getTicket(Entry.first)->getDigest().Bytes);
-    // Update GV's hash using the contributions.
-    for (const GlobalObject *GO : Entry.second) {
-      GVHash.update(getTicket(GO)->getDigest().Bytes);
-    }
-    MD5::MD5Result Digest;
-    GVHash.final(Digest);
-    set(const_cast<GlobalVariable *>(Entry.first), Digest);
-  }
-
-  // If GO's dependents include the updated GV, update the GO's digest.
-  for (auto &GO : M.global_objects()) {
-    if (GO.isDeclaration())
-      continue;
-
-    Visited.clear();
-    MD5 Hash = MD5();
-
-    Hash.update(getTicket(&GO)->getDigest().Bytes);
-    auto Helper = [&GVIMap](const GlobalObject *GO, MD5 &GOHash,
-                            GOInfoMap &GOIMap) {
-      return updateDigestUseContributions(GO, GOHash, GOIMap, GVIMap);
-    };
-
-    if (updateDigestUseCallDependencies(&GO, Hash, Visited, GOIMap, Helper)) {
-      MD5::MD5Result Digest;
-      Hash.final(Digest);
-      set(&GO, Digest);
-    }
   }
 
   return std::make_tuple(Changed, GONum.VarNum, GONum.FuncNum);
@@ -258,8 +218,9 @@ DigestType calculateDigest(const GlobalObject *GO) {
   MD5 Hash = MD5();
   GOInfoMap GOIMap;
 
-  updateDigestUseCallDependencies(GO, Hash, Visited, GOIMap,
-                                  updateGODigestAndGetDependencies);
+  updateDigestUseDependenciesAndContributions(
+      GO, Hash, Visited, GOIMap,
+      accumulateGOFinalDigestOrInitialDigestAndGetGODigestState);
   MD5::MD5Result Digest;
   Hash.final(Digest);
   return Digest;

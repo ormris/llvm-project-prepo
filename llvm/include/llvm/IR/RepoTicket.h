@@ -13,6 +13,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/MD5.h"
 
 #include <map>
@@ -34,13 +35,9 @@ namespace ticketmd {
 using DigestType = MD5::MD5Result;
 static constexpr size_t DigestSize =
     std::tuple_size<decltype(DigestType::Bytes)>::value;
-using DependenciesType = SmallVector<const GlobalObject *, 1>;
-using ContributionsType = SmallVector<const GlobalVariable *, 1>;
+using GOVec = SmallVector<const GlobalObject *, 1>;
 /// Map GO to a unique number in the function call graph.
 using GOStateMap = llvm::DenseMap<const GlobalObject *, unsigned>;
-/// A pair of the global object's dependencies and a bool which is true if
-/// GO's hash value has been updated.
-using GODigestState = std::pair<const DependenciesType &, bool>;
 
 const Constant *getAliasee(const GlobalAlias *GA);
 /// Set global object ticket metadata value and add this to the module level
@@ -59,45 +56,97 @@ struct GONumber {
 
 /// A structure of a global object (GO) information.
 struct GOInfo {
-  /// GO's initial hash value which does not include the hash of its dependents.
+  /// The InitialDigest is the hash of an object itself (a function or global
+  /// variable) without consideration for any references to other objects.
   DigestType InitialDigest;
-  /// A set of global objects which the GO's hash depenendent on.
-  DependenciesType Dependencies;
-  /// A set of global variables which the GO's hash contributed to.
-  ContributionsType Contributions;
+  /// The Contributions of an object (X) are those objects (Y) which
+  /// transitively reference X and where a potential optimisation to either X or
+  /// any of Y may invalidate both.
+  GOVec Contributions;
+  /// The Dependencies of an object are those objects which it transitively
+  /// references but are not Contributions.
+  GOVec Dependencies;
 
   GOInfo() = default;
-  GOInfo(DigestType &&Digest, DependenciesType &&Dependencies,
-         ContributionsType &&Contributions)
-      : InitialDigest(std::move(Digest)), Dependencies(std::move(Dependencies)),
-        Contributions(std::move(Contributions)) {}
+  GOInfo(DigestType &&Digest, GOVec &&Contributions, GOVec &&Dependencies)
+      : InitialDigest(std::move(Digest)),
+        Contributions(std::move(Contributions)),
+        Dependencies(std::move(Dependencies)) {}
+
+#ifndef NDEBUG
+  void dump() const {
+    dbgs() << "GOInfo:";
+    dbgs() << "\n\tInitial Digest: " << InitialDigest.digest();
+    dbgs() << "\n\tContributions: [ ";
+    bool first = true;
+    for (const auto &Contribution : Contributions) {
+      if (!first)
+        dbgs() << ",";
+      dbgs() << Contribution->getName();
+      first = false;
+    }
+    dbgs() << "]";
+    dbgs() << "\n\tDependencies: [ ";
+    first = true;
+    for (const auto &Dependent : Dependencies) {
+      if (!first)
+        dbgs() << ",";
+      dbgs() << Dependent->getName();
+      first = false;
+    }
+    dbgs() << "]\n";
+  }
+#endif
 };
 using GOInfoMap = DenseMap<const GlobalObject *, GOInfo>;
 
-/// A map from a global variable (GV) to the contibutions.
-using GVInfoMap = DenseMap<const GlobalVariable *, DependenciesType>;
+/// A structure of a global object (GO) state.
+struct GODigestState {
+  /// A reference to an object's contributions. The GOInfo struct takes
+  /// ownership of it.
+  const GOVec &Contributions;
+  /// A reference to an object's dependencies. The GOInfo struct takes ownership
+  /// of it.
+  const GOVec &Dependencies;
+  /// A bool which is true if GO's hash value has been changed.
+  bool Changed;
+  GODigestState() = delete;
+  GODigestState(const GOVec &Contributions, const GOVec &Dependencies,
+                bool Changed)
+      : Contributions(Contributions), Dependencies(Dependencies),
+        Changed(Changed) {}
+};
 
-/// A tuple containing the global object information and two unsigned values
-/// which are the number of global variables and functions respectively.
-using ModuleTuple = std::tuple<GOInfoMap, unsigned, unsigned>;
-
-/// Calculate the initial hash value and dependent lists for the global object
-/// 'G'. The value does not include the hash value of its dependent globals.
+/// Calculate the initial hash value, dependencies and contributions for the
+/// global object 'G'.
 /// \param G Calculated global object.
 /// \param GOI a DenseMap containing the global object information.
-/// \return an iterator pointing to a GOI element with key of G.
 ///
 template <typename GlobalType>
-GOInfoMap::const_iterator
-calculateInitialDigestAndDependenciesAndContributions(const GlobalType *G,
-                                                      GOInfoMap &GOI) {
-  GOInfo Result = calculateDigestAndDependenciesAndContributions(G);
-  return GOI
-      .try_emplace(G, std::move(Result.InitialDigest),
-                   std::move(Result.Dependencies),
-                   std::move(Result.Contributions))
-      .first;
+void calculateGOInfo(const GlobalType *G, GOInfoMap &GOI) {
+  GOInfo Result = calculateDigestAndDependenciesAndContributedToGVs(G);
+  // ContributedToGVs of an object is used to update other objects'
+  // contributions. For example, if the ContributedToGVs of function `foo`  are
+  // global variables `g` and `q`, the function `foo` is in the contributions of
+  // `g` and `q`.
+  // ContributedToGVs[`foo`] = [`g`, `q`]
+  // ====> Contributions[`g`] = [`foo`],
+  //       Contributions[`q`] = [`foo`]
+  for (auto &GO : Result.Contributions) {
+    GOI[GO].Contributions.emplace_back(G);
+  }
+  // Update G's dependencies.
+  GOInfo &GInfo = GOI[G];
+  GInfo.InitialDigest = std::move(Result.InitialDigest);
+  GInfo.Dependencies = std::move(Result.Dependencies);
 }
+
+// Create a global object information map and calculate the number of hashed
+// functions and variable  inside of the Module M.
+/// \param M Called module.
+/// \returns a pair containing a global object information map and a structure
+/// holding the number of hashed global variables and functions.
+std::pair<GOInfoMap, GONumber> calculateGONumAndGOIMap(Module &M);
 
 /// Compute the hash value and set the ticket metadata for all global objects
 /// inside of the Module M.

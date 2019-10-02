@@ -516,13 +516,13 @@ void FunctionHashCalculator::hashInstruction(const Instruction *V,
     update(HashKind::TAG_CallInst);
     update(CI->isTailCall());
     hashCallInvoke(CI);
-    addContributionsFromCallInvoke(CI);
+    addContributedToGVsFromCallInvoke(CI);
     return;
   }
   if (const InvokeInst *II = dyn_cast<InvokeInst>(V)) {
     update(HashKind::TAG_InvokeInst);
     hashCallInvoke(II);
-    addContributionsFromCallInvoke(II);
+    addContributedToGVsFromCallInvoke(II);
     return;
   }
 
@@ -556,7 +556,7 @@ void FunctionHashCalculator::hashInstruction(const Instruction *V,
     FnHash.hashOrdering(SI->getOrdering());
     update(SI->getSyncScopeID());
     if (auto *GV = getStoreAddress(SI)) {
-      FnHash.getContributions().emplace_back(GV);
+      FnHash.getContributedToGVs().emplace_back(GV);
     }
     return;
   }
@@ -657,12 +657,12 @@ void FunctionHashCalculator::calculateHash() {
   hashFunction();
 #ifndef NDEBUG
   LLVM_DEBUG(dbgs() << "\nGO name is:" << Fn->getName()
-                    << ". Its dependencies are: ");
+                    << ". Its Dependencies are: ");
   for (auto D : FnHash.getDependencies()) {
     LLVM_DEBUG(dbgs() << D->getName() << ", ");
   }
-  LLVM_DEBUG(dbgs() << ". Its contributions are: ");
-  for (auto C : FnHash.getContributions()) {
+  LLVM_DEBUG(dbgs() << ". Its ContributedToGVs are: ");
+  for (auto C : FnHash.getContributedToGVs()) {
     LLVM_DEBUG(dbgs() << C->getName() << ", ");
   }
   LLVM_DEBUG(dbgs() << "\n");

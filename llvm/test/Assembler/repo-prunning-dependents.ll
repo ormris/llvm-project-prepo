@@ -26,6 +26,6 @@ entry:
   ret void
 }
 
-;CHECK:      !3 = !TicketNode(name: "test",
-;CHECK-NEXT: !4 = !TicketNode(name: ".input_str",
-;CHECK-NEXT: !5 = !TicketNode(name: "str",
+;CHECK:      !TicketNode(name: "test",
+;CHECK-NEXT: !TicketNode(name: ".input_str",
+;CHECK-NEXT: !TicketNode(name: "str",

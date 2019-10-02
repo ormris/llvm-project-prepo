@@ -14,7 +14,7 @@ target triple = "x86_64-pc-linux-gnu-repo"
 define void @test2() {
 entry:
   %0 = load i32*, i32** @b, align 8
-  store i32 2, i32* %0, align 4
+  store i32 1, i32* %0, align 4
   ret void
 }
 

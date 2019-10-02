@@ -42,17 +42,6 @@ protected:
     return M;
   }
 
-  /// Get the GO's information if it is in the information map, otherwise return
-  /// an assert failure.
-  template <typename GlobalType>
-  ticketmd::GOInfo getGOInfo(const GlobalType *G) {
-    ticketmd::GOInfoMap InfoMap;
-    return std::move(
-        ticketmd::calculateInitialDigestAndDependenciesAndContributions(G,
-                                                                        InfoMap)
-            ->second);
-  }
-
   const TicketNode *getTicket(const GlobalObject *F) {
     return dyn_cast<TicketNode>(F->getMetadata(LLVMContext::MD_repo_ticket));
   }
@@ -77,24 +66,51 @@ protected:
 //      foo            bar
 //   (return 1)    (return 1)
 //
+//  Both 'foo' and 'bar' have the same hash value.
+// `foo`: Contributions: [ ] : Dependencies: [ ].
+// `bar`: Contributions: [ ] : Dependencies: [ ].
+//
 TEST_F(SingleModule, NoCalleeSame) {
   const char *ModuleString = "define internal i32 @foo() { ret i32 1 }\n"
                              "define internal i32 @bar() { ret i32 1 }\n";
   M = parseAssembly(ModuleString);
+  ticketmd::GOInfoMap InfoMap;
+  ticketmd::GONumber _;
+  std::tie(InfoMap, _) = ticketmd::calculateGONumAndGOIMap(*M);
+
+  const Function *Foo = M->getFunction("foo");
+  const ticketmd::GOInfo &FooInfo = InfoMap[Foo];
+  const Function *Bar = M->getFunction("bar");
+  const ticketmd::GOInfo &BarInfo = InfoMap[Bar];
+  EXPECT_EQ(FooInfo.InitialDigest, BarInfo.InitialDigest)
+      << "Expected that functions of foo and bar have the same initial hash "
+         "value";
+  EXPECT_TRUE(FooInfo.Contributions.empty())
+      << "Expected that the foo's contribution list is empty.";
+  EXPECT_TRUE(FooInfo.Dependencies.empty())
+      << "Expected that the foo's dependencies list is empty.";
+  EXPECT_TRUE(BarInfo.Contributions.empty())
+      << "Expected that the bar's contributions list is empty.";
+  EXPECT_TRUE(BarInfo.Dependencies.empty())
+      << "Expected that the bar's dependencies list is empty.";
+  // Check the GOs' final digest.
   const auto &Result = ticketmd::generateTicketMDs(*M);
   EXPECT_TRUE(std::get<0>(Result)) << "Expected Module M to be changed";
   EXPECT_EQ(std::get<1>(Result), 0u) << "Expected zero global variables";
   EXPECT_EQ(std::get<2>(Result), 2u) << "Expected two global functions";
-  const Function *Foo = M->getFunction("foo");
-  const Function *Bar = M->getFunction("bar");
   EXPECT_TRUE(isEqualDigest(Foo, Bar))
       << "Functions of foo and bar should have the same digest";
 }
+
 
 //
 //  IR forming a following call graph for M.
 //      foo            bar
 //   (return 2)    (return 1)
+//
+//  Both 'foo' and 'bar' have the different digest.
+// `foo`: Contributions: [ ] : Dependencies: [ ].
+// `bar`: Contributions: [ ] : Dependencies: [ ].
 //
 TEST_F(SingleModule, NoCalleeDiff) {
   const char *ModuleString = "define internal i32 @foo() { ret i32 2 }\n"
@@ -115,6 +131,8 @@ TEST_F(SingleModule, NoCalleeDiff) {
 //       (return 1)
 //
 // Both 'foo' and 'bar' call 'g' function and have the same hash value.
+// `foo`: Contributions: [] : Dependencies: [ `g` ].
+// `bar`: Contributions: [] : Dependencies: [ `g` ].
 //
 TEST_F(SingleModule, OneCalleeSameNameSameBody) {
   const char *ModuleString = "define i32 @foo() {\n"
@@ -129,12 +147,31 @@ TEST_F(SingleModule, OneCalleeSameNameSameBody) {
                              "}\n"
                              "define internal i32 @g() { ret i32 1 }\n";
   M = parseAssembly(ModuleString);
+  // Check the GOs' initial digest, contributions and dependencies.
+  ticketmd::GOInfoMap InfoMap;
+  ticketmd::GONumber _;
+  std::tie(InfoMap, _) = ticketmd::calculateGONumAndGOIMap(*M);
+  const Function *Foo = M->getFunction("foo");
+  const ticketmd::GOInfo &FooInfo = InfoMap[Foo];
+  const Function *Bar = M->getFunction("bar");
+  const ticketmd::GOInfo &BarInfo = InfoMap[Bar];
+  const Function *G = M->getFunction("g");
+  EXPECT_EQ(FooInfo.InitialDigest, BarInfo.InitialDigest)
+      << "Expected that functions of foo and bar have the same initial hash "
+         "value";
+  EXPECT_TRUE(FooInfo.Contributions.empty())
+      << "Expected that the foo's contributions list is empty.";
+  EXPECT_THAT(FooInfo.Dependencies, ::testing::UnorderedElementsAre(G))
+      << "Expected foo's Dependencies list is { G }";
+  EXPECT_TRUE(BarInfo.Contributions.empty())
+      << "Expected that the bar's contributions list is empty.";
+  EXPECT_THAT(BarInfo.Dependencies, ::testing::UnorderedElementsAre(G))
+      << "Expected bar's Dependencies list is { G }";
+  // Check the GOs' final digest.
   const auto &Result = ticketmd::generateTicketMDs(*M);
   EXPECT_TRUE(std::get<0>(Result)) << "Expected Module M to be changed";
   EXPECT_EQ(std::get<1>(Result), 0u) << "Expected zero global variables";
   EXPECT_EQ(std::get<2>(Result), 3u) << "Expected three global functions";
-  const Function *Foo = M->getFunction("foo");
-  const Function *Bar = M->getFunction("bar");
   EXPECT_TRUE(isEqualDigest(Foo, Bar))
       << "Functions of foo and bar should have the same digest";
 }
@@ -148,6 +185,8 @@ TEST_F(SingleModule, OneCalleeSameNameSameBody) {
 //
 // The 'foo' and 'bar' have the different hash value since they call the
 // different name functions ('p' and 'q').
+// `foo`: Contributions: [] : Dependencies: [ `g` ].
+// `bar`: Contributions: [] : Dependencies: [ `p` ].
 //
 TEST_F(SingleModule, OneCalleeDiffNameSameBody) {
   const char *ModuleString = "define i32 @foo() {\n"
@@ -163,16 +202,34 @@ TEST_F(SingleModule, OneCalleeDiffNameSameBody) {
                              "define internal i32 @g() { ret i32 1 }\n"
                              "define internal i32 @p() { ret i32 1 }\n";
   M = parseAssembly(ModuleString);
+  // Check the GOs' initial digest, contributions and dependencies.
+  ticketmd::GOInfoMap InfoMap;
+  ticketmd::GONumber _;
+  std::tie(InfoMap, _) = ticketmd::calculateGONumAndGOIMap(*M);
+  const Function *Foo = M->getFunction("foo");
+  const ticketmd::GOInfo &FooInfo = InfoMap[Foo];
+  const Function *Bar = M->getFunction("bar");
+  const ticketmd::GOInfo &BarInfo = InfoMap[Bar];
+  const Function *G = M->getFunction("g");
+  const Function *P = M->getFunction("p");
+  EXPECT_NE(FooInfo.InitialDigest, BarInfo.InitialDigest)
+      << "Expected that functions of foo and bar have the different initial "
+         "hash value";
+  EXPECT_TRUE(FooInfo.Contributions.empty())
+      << "Expected that the foo's contributions list is empty.";
+  EXPECT_THAT(FooInfo.Dependencies, ::testing::UnorderedElementsAre(G))
+      << "Expected foo's Dependencies list is { G }";
+  EXPECT_TRUE(BarInfo.Contributions.empty())
+      << "Expected that the bar's contributions list is empty.";
+  EXPECT_THAT(BarInfo.Dependencies, ::testing::UnorderedElementsAre(P))
+      << "Expected bar's Dependencies list is { P }";
+  // Check the GOs' final digest.
   const auto &Result = ticketmd::generateTicketMDs(*M);
   EXPECT_TRUE(std::get<0>(Result)) << "Expected Module M to be changed";
   EXPECT_EQ(std::get<1>(Result), 0u) << "Expected zero global variables";
   EXPECT_EQ(std::get<2>(Result), 4u) << "Expected four global functions";
-  const Function *G = M->getFunction("g");
-  const Function *P = M->getFunction("p");
   EXPECT_TRUE(isEqualDigest(G, P))
       << "Functions of p and q should have the same digest";
-  const Function *Foo = M->getFunction("foo");
-  const Function *Bar = M->getFunction("bar");
   EXPECT_FALSE(isEqualDigest(Foo, Bar))
       << "Functions of foo and bar should have the different digest";
 }
@@ -282,6 +339,11 @@ TEST_F(SingleModule, DirectCall) {
 //      |           |
 //      <-----------+
 //
+//  The 'foo' and 'bar' have the different hash value since they call the
+//  different name functions ('bar' and 'foo').
+//  `foo`: Contributions: [] : Dependencies: [ `bar` ].
+//  `bar`: Contributions: [] : Dependencies: [ `foo` ].
+//
 TEST_F(SingleModule, CallEachOther) {
   const char *ModuleString = "define void @foo() {\n"
                              "entry:\n"
@@ -294,23 +356,26 @@ TEST_F(SingleModule, CallEachOther) {
                              "ret void\n"
                              "}\n";
   M = parseAssembly(ModuleString);
-
+  // Check the GOs' initial digest, contributions and dependencies.
+  ticketmd::GOInfoMap InfoMap;
+  ticketmd::GONumber _;
+  std::tie(InfoMap, _) = ticketmd::calculateGONumAndGOIMap(*M);
   const Function *Foo = M->getFunction("foo");
-  const ticketmd::GOInfo FooInfo = getGOInfo(Foo);
-  Function *Bar = M->getFunction("bar");
-  const ticketmd::GOInfo BarInfo = getGOInfo(Bar);
-
+  const ticketmd::GOInfo &FooInfo = InfoMap[Foo];
+  const Function *Bar = M->getFunction("bar");
+  const ticketmd::GOInfo &BarInfo = InfoMap[Bar];
   EXPECT_NE(FooInfo.InitialDigest, BarInfo.InitialDigest)
       << "Expected that functions of foo and bar have the different initial "
          "hash value";
-
-  const auto &FooDependencies = FooInfo.Dependencies;
-  const auto &BarDependencies = BarInfo.Dependencies;
-  EXPECT_THAT(FooDependencies, ::testing::ElementsAre(Bar))
-      << "Expected foo's dependent list is {bar}";
-  EXPECT_THAT(BarDependencies, ::testing::ElementsAre(Foo))
-      << "Expected bar's dependent list is {foo}";
-
+  EXPECT_TRUE(FooInfo.Contributions.empty())
+      << "Expected that the foo's contributions list is empty.";
+  EXPECT_THAT(FooInfo.Dependencies, ::testing::ElementsAre(Bar))
+      << "Expected foo's Dependencies list is {bar}";
+  EXPECT_TRUE(BarInfo.Contributions.empty())
+      << "Expected that the bar's contributions list is empty.";
+  EXPECT_THAT(BarInfo.Dependencies, ::testing::ElementsAre(Foo))
+      << "Expected bar's Dependencies list is {foo}";
+  // Check the GOs' final digest.
   const auto &Result = ticketmd::generateTicketMDs(*M);
   EXPECT_TRUE(std::get<0>(Result)) << "Expected Module M to be changed";
   EXPECT_EQ(std::get<1>(Result), 0u) << "Expected zero global variables";
@@ -326,6 +391,10 @@ TEST_F(SingleModule, CallEachOther) {
 //     +---> P <-- +          |
 //           |                |
 //           +----------------+
+//
+//  `foo`: Contributions: [] : Dependencies: [ `p` ].
+//  `bar`: Contributions: [] : Dependencies: [ `p` ].
+//  `p`  : Contributions: [] : Dependencies: [ `bar` ].
 //
 TEST_F(SingleModule, OneCalleeLoop) {
   const char *ModuleString = "define i32 @foo() {\n"
@@ -344,9 +413,33 @@ TEST_F(SingleModule, OneCalleeLoop) {
                              "  ret i32 %0\n"
                              "}\n";
   M = parseAssembly(ModuleString);
-  ticketmd::generateTicketMDs(*M);
+  // Check the GOs' initial digest, contributions and dependencies.
+  ticketmd::GOInfoMap InfoMap;
+  ticketmd::GONumber _;
+  std::tie(InfoMap, _) = ticketmd::calculateGONumAndGOIMap(*M);
   const Function *Foo = M->getFunction("foo");
+  const ticketmd::GOInfo &FooInfo = InfoMap[Foo];
   const Function *Bar = M->getFunction("bar");
+  const ticketmd::GOInfo &BarInfo = InfoMap[Bar];
+  const Function *P = M->getFunction("p");
+  const ticketmd::GOInfo &PInfo = InfoMap[P];
+  EXPECT_EQ(FooInfo.InitialDigest, BarInfo.InitialDigest)
+      << "Expected that functions of foo and bar have the same initial hash "
+         "value";
+  EXPECT_TRUE(FooInfo.Contributions.empty())
+      << "Expected that the foo's contributions list is empty.";
+  EXPECT_THAT(FooInfo.Dependencies, ::testing::ElementsAre(P))
+      << "Expected foo's Dependencies list is {P}";
+  EXPECT_TRUE(BarInfo.Contributions.empty())
+      << "Expected that the bar's contributions list is empty.";
+  EXPECT_THAT(BarInfo.Dependencies, ::testing::ElementsAre(P))
+      << "Expected bar's Dependencies list is {P}";
+  EXPECT_TRUE(PInfo.Contributions.empty())
+      << "Expected that the p's contributions list is empty.";
+  EXPECT_THAT(PInfo.Dependencies, ::testing::ElementsAre(Bar))
+      << "Expected p's Dependencies list is {bar}";
+  // Check the GOs' final digest.
+  ticketmd::generateTicketMDs(*M);
   EXPECT_FALSE(isEqualDigest(Foo, Bar))
       << "Expected that functions of foo and bar have the different final "
          "hash value";
@@ -362,6 +455,13 @@ TEST_F(SingleModule, OneCalleeLoop) {
 //       |
 //       v
 //       z
+//
+//  `foo`: Contributions: [] : Dependencies: [ `p`,  `q`].
+//  `bar`: Contributions: [] : Dependencies: [ `p`,  `q` ].
+//  `p`  : Contributions: [] : Dependencies: [ `z` ].
+//  `q`  : Contributions: [] : Dependencies: [ ].
+//  `z`  : Contributions: [] : Dependencies: [ ].
+//
 TEST_F(SingleModule, TwolevelsCall) {
   const char *ModuleString = "define i32 @foo() {\n"
                              "entry:\n"
@@ -392,17 +492,20 @@ TEST_F(SingleModule, TwolevelsCall) {
                              " ret i32 1\n"
                              "}\n";
   M = parseAssembly(ModuleString);
-
-  Function *Foo = M->getFunction("foo");
-  const ticketmd::GOInfo FooInfo = getGOInfo(Foo);
-  Function *Bar = M->getFunction("bar");
-  const ticketmd::GOInfo BarInfo = getGOInfo(Bar);
-  Function *P = M->getFunction("p");
-  const ticketmd::GOInfo PInfo = getGOInfo(P);
-  Function *Q = M->getFunction("q");
-  const ticketmd::GOInfo QInfo = getGOInfo(Q);
-  Function *Z = M->getFunction("z");
-  const ticketmd::GOInfo ZInfo = getGOInfo(Z);
+  // Check the GOs' initial digest, contributions and dependencies.
+  ticketmd::GOInfoMap InfoMap;
+  ticketmd::GONumber _;
+  std::tie(InfoMap, _) = ticketmd::calculateGONumAndGOIMap(*M);
+  const Function *Foo = M->getFunction("foo");
+  const ticketmd::GOInfo &FooInfo = InfoMap[Foo];
+  const Function *Bar = M->getFunction("bar");
+  const ticketmd::GOInfo &BarInfo = InfoMap[Bar];
+  const Function *P = M->getFunction("p");
+  const ticketmd::GOInfo &PInfo = InfoMap[P];
+  const Function *Q = M->getFunction("q");
+  const ticketmd::GOInfo &QInfo = InfoMap[Q];
+  const Function *Z = M->getFunction("z");
+  const ticketmd::GOInfo &ZInfo = InfoMap[Z];
 
   EXPECT_EQ(ZInfo.InitialDigest, QInfo.InitialDigest)
       << "Expected that functions of z and q have the same initial "
@@ -410,21 +513,27 @@ TEST_F(SingleModule, TwolevelsCall) {
   EXPECT_EQ(FooInfo.InitialDigest, BarInfo.InitialDigest)
       << "Expected that functions of foo and bar have the same initial "
          "hash value";
-  const ticketmd::DependenciesType &ZDependencies = ZInfo.Dependencies;
-  const ticketmd::DependenciesType &PDependencies = PInfo.Dependencies;
-  const ticketmd::DependenciesType &QDependencies = QInfo.Dependencies;
-  const ticketmd::DependenciesType &FooDependencies = FooInfo.Dependencies;
-  const ticketmd::DependenciesType &BarDependencies = BarInfo.Dependencies;
 
-  EXPECT_EQ(ZDependencies.size(), std::size_t{0})
-      << "Expected that the size of z's dependent list is zero";
-  EXPECT_EQ(QDependencies.size(), std::size_t{0})
-      << "Expected that the size of q's dependent list is zero";
-  EXPECT_THAT(PDependencies, ::testing::ElementsAre(Z));
-  EXPECT_THAT(FooDependencies, ::testing::UnorderedElementsAre(P, Q))
-      << "Expected foo's dependent list is {P, Q}";
-  EXPECT_THAT(BarDependencies, ::testing::UnorderedElementsAre(P, Q))
-      << "Expected bar's dependent list is {P, Q}";
+  EXPECT_TRUE(ZInfo.Contributions.empty())
+      << "Expected that the z's Contributions list is empty.";
+  EXPECT_TRUE(ZInfo.Dependencies.empty())
+      << "Expected that the z's Dependencies list is empty.";
+  EXPECT_TRUE(QInfo.Contributions.empty())
+      << "Expected that the q's Contributions list is empty.";
+  EXPECT_TRUE(QInfo.Dependencies.empty())
+      << "Expected that the q's Dependencies list is empty.";
+  EXPECT_TRUE(PInfo.Contributions.empty())
+      << "Expected that the p's Contributions list is empty.";
+  EXPECT_THAT(PInfo.Dependencies, ::testing::ElementsAre(Z))
+      << "Expected that the p's Dependencies list is {Z}";
+  EXPECT_TRUE(FooInfo.Contributions.empty())
+      << "Expected that the foo's Contributions list is empty.";
+  EXPECT_THAT(FooInfo.Dependencies, ::testing::UnorderedElementsAre(P, Q))
+      << "Expected that the foo's Dependencies list is {P, Q}";
+  EXPECT_TRUE(BarInfo.Contributions.empty())
+      << "Expected that the bar's Contributions list is empty.";
+  EXPECT_THAT(BarInfo.Dependencies, ::testing::UnorderedElementsAre(P, Q))
+      << "Expected that the bar's Dependencies list is {P, Q}";
 
   const auto &Result = ticketmd::generateTicketMDs(*M);
   EXPECT_TRUE(std::get<0>(Result)) << "Expected Module M to be changed";
@@ -432,6 +541,112 @@ TEST_F(SingleModule, TwolevelsCall) {
   EXPECT_EQ(std::get<2>(Result), 5u) << "Expected five global functions";
   EXPECT_TRUE(isEqualDigest(Foo, Bar)) << "Expected that functions of foo and "
                                           "bar have the same final hash value";
+}
+
+//
+//  Z has a single contribution.
+//        test
+//         /\
+//        /  \
+//       v    \
+//     setto   \
+//        \    /
+//         \  /
+//         v  v
+//           Z
+//
+//  `Z`     : Contributions: [ `test`] : Dependencies: [ ].
+//  `test`  : Contributions: [ ]       : Dependencies: [ `Z`,  `setto` ].
+//  `setto` : Contributions: [ ]       : Dependencies: [ ].
+//
+TEST_F(SingleModule, SingleContribution) {
+  const char *ModuleString = "@Z = global i32 1\n"
+                             "define void @test() {\n"
+                             "    call void @setto( i32* @Z, i32 3 )\n"
+                             "    ret void\n"
+                             "}\n"
+                             "define void @setto(i32* %P, i32 %V) {\n"
+                             "    store i32 %V, i32* %P\n"
+                             "    ret void\n"
+                             "}\n";
+  M = parseAssembly(ModuleString);
+  // Check the GOs' initial digest, contributions and dependencies.
+  ticketmd::GOInfoMap InfoMap;
+  ticketmd::GONumber _;
+  std::tie(InfoMap, _) = ticketmd::calculateGONumAndGOIMap(*M);
+  const GlobalVariable *Z = M->getGlobalVariable("Z");
+  const ticketmd::GOInfo &ZInfo = InfoMap[Z];
+  const Function *Test = M->getFunction("test");
+  const ticketmd::GOInfo &TestInfo = InfoMap[Test];
+  const Function *Setto = M->getFunction("setto");
+  const ticketmd::GOInfo &SettoInfo = InfoMap[Setto];
+
+  EXPECT_THAT(ZInfo.Contributions, ::testing::UnorderedElementsAre(Test))
+      << "Expected that the Z's Contributions list is {Test}";
+  EXPECT_TRUE(ZInfo.Dependencies.empty())
+      << "Expected that Z's Dependencies list is empty";
+  EXPECT_TRUE(TestInfo.Contributions.empty())
+      << "Expected that the test's Contributions list is empty.";
+  EXPECT_THAT(TestInfo.Dependencies, ::testing::UnorderedElementsAre(Z, Setto))
+      << "Expected that the test's Dependencies list is {Z, setto}";
+  EXPECT_TRUE(SettoInfo.Contributions.empty())
+      << "Expected that the setto's Contributions list is empty.";
+  EXPECT_TRUE(SettoInfo.Dependencies.empty())
+      << "Expected that the setto's Dependencies list is empty.";
+}
+
+//
+//  Z has multiple contributions.
+//        test   test1    test2
+//         /\     /\       /\
+//        /  \   /  \     /  \
+//       v    \ /    \   /    \
+//     setto <-\------\-/      \
+//        \    /       \        \
+//         \  /        /        /
+//         v v <------/        /
+//           Z <--------------/
+//
+//  `Z`     : Contributions: [ `test`, `test1`, `test2`] : Dependencies: [ ].
+//  `test`  : Contributions: [ ] : Dependencies: [ `Z`,  `setto` ].
+//  `test1` : Contributions: [ ] : Dependencies: [ `Z`,  `setto` ].
+//  `test2` : Contributions: [ ] : Dependencies: [ `Z`,  `setto` ].
+//  `setto` : Contributions: [ ] : Dependencies: [ ].
+//
+TEST_F(SingleModule, MultipleContribution) {
+  const char *ModuleString = "@Z = global i32 1\n"
+                             "define void @test() {\n"
+                             "    call void @setto( i32* @Z, i32 1 )\n"
+                             "    ret void\n"
+                             "}\n"
+                             "define void @test1() {\n"
+                             "    call void @setto( i32* @Z, i32 2 )\n"
+                             "    ret void\n"
+                             "}\n"
+                             "define void @test2() {\n"
+                             "    call void @setto( i32* @Z, i32 3 )\n"
+                             "    ret void\n"
+                             "}\n"
+                             "define void @setto(i32* %P, i32 %V) {\n"
+                             "    store i32 %V, i32* %P\n"
+                             "    ret void\n"
+                             "}\n";
+  M = parseAssembly(ModuleString);
+  // Check the GOs' initial digest, contributions and dependencies.
+  ticketmd::GOInfoMap InfoMap;
+  ticketmd::GONumber _;
+  std::tie(InfoMap, _) = ticketmd::calculateGONumAndGOIMap(*M);
+  const GlobalVariable *Z = M->getGlobalVariable("Z");
+  const ticketmd::GOInfo &ZInfo = InfoMap[Z];
+  const Function *Test = M->getFunction("test");
+  const Function *Test1 = M->getFunction("test1");
+  const Function *Test2 = M->getFunction("test2");
+
+  EXPECT_THAT(ZInfo.Contributions,
+              ::testing::UnorderedElementsAre(Test, Test1, Test2))
+      << "Expected that the Z's Contributions list is {Test, Test1, Test2}";
+  EXPECT_TRUE(ZInfo.Dependencies.empty())
+      << "Expected that Z's Dependencies list is empty";
 }
 
 // The ticket metadate fixture for double modules.
@@ -556,8 +771,9 @@ TEST_F(DoubleModule, FrontendAndBackendHashGeneration) {
 //     g (1)		 g (1)
 //
 // Both hashes of 'foo' and 'g'  in Module M0 are generated by the frontend.
-// In Module M1, the function 'g' hash is generated by the frontend and 'g' hash
-// is generated by the backend. The 'foo' and 'bar' have the same hash value.
+// In Module M1, the function 'g' hash is generated by the frontend and 'bar'
+// hash is generated by the backend. The 'foo' and 'bar' have the different hash
+// value.
 //
 TEST_F(DoubleModule, MixedFrontendAndBackendHashGeneration) {
   const char *Module0String = "define i32 @foo() {\n"

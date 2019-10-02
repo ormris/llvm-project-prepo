@@ -175,20 +175,22 @@ public:
   /// Return the computed hash as a string.
   std::string &get(MD5::MD5Result &HashRes);
 
-  ticketmd::DependenciesType &getDependencies() { return Dependencies; }
+  ticketmd::GOVec &getDependencies() { return Dependencies; }
 
-  ticketmd::ContributionsType &getContributions() { return Contributions; }
+  ticketmd::GOVec &getContributedToGVs() {
+    return ContributedToGVs;
+  }
 
 private:
   // Accumulate the hash of basicblocks, instructions and variables etc in the
   // function Fn.
   MD5 Hash;
 
-  // Hold the global object list which the function hash depenendent on.
-  ticketmd::DependenciesType Dependencies;
+  // Vector of global objects which the function/variable references.
+  ticketmd::GOVec Dependencies;
 
-  // Hold the global variables which the function/variable hash contributed to.
-  ticketmd::ContributionsType Contributions;
+  // Vector of global objects to which the function/variable has contributed.
+  ticketmd::GOVec ContributedToGVs;
 
   /// Assign serial numbers to values from the function.
   /// Explanation:
@@ -305,10 +307,10 @@ private:
   HashCalculator FnHash;
 
   template <typename T>
-  void addContributionsFromCallInvoke(const T *Instruction) {
+  void addContributedToGVsFromCallInvoke(const T *Instruction) {
     for (unsigned i = 0, ie = Instruction->getNumArgOperands(); i != ie; ++i) {
       if (auto *GV = getAddressFromValue(Instruction->getArgOperand(i))) {
-        FnHash.getContributions().emplace_back(GV);
+        FnHash.getContributedToGVs().emplace_back(GV);
       }
     }
   }
@@ -363,13 +365,15 @@ struct DigestCalculator<Function> {
 };
 
 template <typename T>
-ticketmd::GOInfo calculateDigestAndDependenciesAndContributions(const T *GO) {
-  // Calculate the initial global object hash value and dependent list.
+ticketmd::GOInfo
+calculateDigestAndDependenciesAndContributedToGVs(const T *GO) {
+  // Calculate the initial global object hash value, Dependencies and
+  // ContributedToGVs.
   typename DigestCalculator<T>::Calculator GOHC{GO};
   GOHC.calculateHash();
   return {std::move(GOHC.getHashResult()),
-          std::move(GOHC.hasher().getDependencies()),
-          std::move(GOHC.hasher().getContributions())};
+          std::move(GOHC.hasher().getContributedToGVs()),
+          std::move(GOHC.hasher().getDependencies())};
 }
 
 } // end namespace llvm
