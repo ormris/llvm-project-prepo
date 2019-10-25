@@ -7,7 +7,7 @@
 #===-----------------------------------------------------------------------===//
 
 # Stage 1. Check out LLVM and PStore source code and run the build.
-FROM launcher.gcr.io/google/ubuntu16_04 as builder
+FROM ubuntu:18.04 as builder
 #LABEL maintainer "LLVM Developers"
 
 # Install build dependencies of llvm.
@@ -16,9 +16,10 @@ RUN grep deb /etc/apt/sources.list | \
     sed 's/^deb/deb-src /g' >> /etc/apt/sources.list
 
 # Install compiler, python, ninja and cmake.
-RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
-    build-essential python cmake git ninja-build && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends \
+    apt-utils build-essential ca-certificates cmake git ninja-build python
+RUN rm -rf /var/lib/apt/lists/*
 
 # Miscellaneous directories.
 ARG install_dir="/tmp/install"
@@ -38,16 +39,19 @@ RUN ls -l ${workspace_dir}/src
 ARG checkout_args
 RUN echo "checkout_args: " ${checkout_args}
 RUN ${scripts_dir}/checkout_llvm_prepo.sh \
-    --workspace ${workspace_dir} ${checkout_args}
+    --workspace ${workspace_dir} \
+    ${checkout_args}
 
 # Run the build. Results of the build will be available at install directory.
 ARG build_args
 RUN echo "build_args: " ${build_args}
 RUN ${scripts_dir}/build_install_llvm_prepo.sh \
-    --workspace ${workspace_dir} --install-dir ${install_dir} ${build_args}
+    --workspace ${workspace_dir} \
+    --install-dir ${install_dir} \
+    ${build_args}
 
 # Stage 2. Produce a minimal release image with build results.
-FROM launcher.gcr.io/google/ubuntu16_04 as llvm-prepo-stage
+FROM ubuntu:18.04 as llvm-prepo-stage
 #LABEL maintainer "LLVM Developers"
 ENTRYPOINT /bin/bash
 
@@ -55,6 +59,18 @@ ENTRYPOINT /bin/bash
 #COPY --from=builder ${install_dir}/ ${user_dir}/
 # The COPY command does not support variables.
 COPY --from=builder /tmp/install/ /usr/local/
+
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends openssl sudo
+RUN rm -rf /var/lib/apt/lists/*
+
+# Create the "prepo" user (password "prepo") with sudo privileges.
+RUN useradd --system --create-home --shell /bin/bash \
+            --gid root --groups sudo --uid 1000 \
+            --password $(openssl passwd -1 prepo) \
+            prepo
+USER prepo
+WORKDIR /home/prepo
 
 # Cleanup.
 RUN rm -rf ${install_dir}

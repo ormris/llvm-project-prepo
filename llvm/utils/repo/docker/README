@@ -1,4 +1,4 @@
-Ability to create a Docker image for llvm-prepo
+A utility script which creates a Docker image for LLVM-prepo
 
 Usage: build_docker_image.sh [options] [-- [cmake_args]...]
 
@@ -19,22 +19,25 @@ Available options:
 
 Required options: --docker-repository, at least one --install-target.
 
-All options after '--' are passed to CMake invocation.
+All options after '--' are passed to the CMake invocation.
 
 For example, running:
-  build_docker_image.sh \
-    --branch master --docker-tag latest \
-    --install-target install-clang --install-target install-pstore \
-    -- -DCMAKE_BUILD_TYPE=Release
+
+    build_docker_image.sh \
+        --branch master --docker-tag latest \
+        --install-target install-clang --install-target install-pstore \
+        -- -DCMAKE_BUILD_TYPE=Release
 
 will produce a docker image:
-  llvm-prepo:latest - a small image with preinstalled release versions of
-                      clang and pstore tools, build from the 'master' branch.
+
+    llvm-prepo:latest - a small image with preinstalled release versions of
+                        clang and pstore tools, built from the 'master' branch.
 
 The image can be executed with:
-  docker run -t -i llvm-prepo:latest /bin/bash
+
+    docker run --tty --interactive llvm-prepo:latest
 
 The --local argument specifies a local directory that is the root for the
-llvm repository.
+LLVM repository.
 
 For additional information see llvm/docs/Docker.rst for details

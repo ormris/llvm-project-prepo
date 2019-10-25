@@ -49,7 +49,7 @@ llvm repository.
 EOF
 }
 
-IMAGE_SOURCE="pstore"
+IMAGE_SOURCE="llvm-prepo"
 DOCKER_REPOSITORY="llvm-prepo"
 
 DOCKER_TAG=""
