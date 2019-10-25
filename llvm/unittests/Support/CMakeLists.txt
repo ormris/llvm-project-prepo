@@ -88,8 +88,4 @@ set_source_files_properties(AlignOfTest.cpp PROPERTIES COMPILE_FLAGS -w)
 # ManagedStatic.cpp uses <pthread>.
 target_link_libraries(SupportTests PRIVATE LLVMTestingSupport ${LLVM_PTHREAD_LIB})
 
-if(CMAKE_C_COMPILER_TARGET STREQUAL "x86_64-pc-linux-gnu-repo")
-  message (WARNING "Disabled the dynamic library build because the Repo doesn't yet support it.")
-else()
-  add_subdirectory(DynamicLibrary)
-endif()
+add_subdirectory(DynamicLibrary)
