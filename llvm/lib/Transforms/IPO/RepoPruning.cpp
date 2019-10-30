@@ -88,13 +88,13 @@ GlobalValue::LinkageTypes toGVLinkage(pstore::repo::linkage L) {
   llvm_unreachable("Unsupported linkage type");
 }
 
-GlobalValue::VisibilityTypes toGVVisibility(pstore::repo::visibility_type V) {
+GlobalValue::VisibilityTypes toGVVisibility(pstore::repo::visibility V) {
   switch (V) {
-  case pstore::repo::visibility_type::default_visibility:
+  case pstore::repo::visibility::default_vis:
     return GlobalValue::VisibilityTypes::DefaultVisibility;
-  case pstore::repo::visibility_type::hidden_visibility:
+  case pstore::repo::visibility::hidden_vis:
     return GlobalValue::VisibilityTypes::HiddenVisibility;
-  case pstore::repo::visibility_type::protected_visibility:
+  case pstore::repo::visibility::protected_vis:
     return GlobalValue::VisibilityTypes::ProtectedVisibility;
   }
   llvm_unreachable("Unsupported visibility type");

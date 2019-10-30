@@ -175,7 +175,7 @@ public:
 
   static pstore::repo::linkage toPstoreLinkage(GlobalValue::LinkageTypes L);
 
-  static pstore::repo::visibility_type
+  static pstore::repo::visibility
   toPstoreVisibility(GlobalValue::VisibilityTypes V);
 
   bool isSymbolRefDifferenceFullyResolvedImpl(const MCAssembler &Asm,
@@ -601,18 +601,17 @@ RepoObjectWriter::toPstoreLinkage(GlobalValue::LinkageTypes L) {
   }
 }
 
-pstore::repo::visibility_type
+pstore::repo::visibility
 RepoObjectWriter::toPstoreVisibility(GlobalValue::VisibilityTypes V) {
   switch (V) {
   case GlobalValue::DefaultVisibility:
-    return pstore::repo::visibility_type::default_visibility;
+    return pstore::repo::visibility::default_vis;
   case GlobalValue::HiddenVisibility:
-    return pstore::repo::visibility_type::hidden_visibility;
+    return pstore::repo::visibility::hidden_vis;
   case GlobalValue::ProtectedVisibility:
-    return pstore::repo::visibility_type::protected_visibility;
-  default:
-    report_fatal_error("Unsupported visibility type");
+    return pstore::repo::visibility::protected_vis;
   }
+  llvm_unreachable("Unsupported visibility type");
 }
 
 pstore::raw_sstring_view RepoObjectWriter::getSymbolName(

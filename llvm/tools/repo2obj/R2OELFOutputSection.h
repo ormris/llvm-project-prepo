@@ -240,9 +240,9 @@ OutputSection<ELFT>::SectionInfo::symbol(SymbolTable<ELFT> &Symbols,
     static auto PrivateSymbolCount = 0U;
 
     auto Name = Generated.add(".LR" + std::to_string(PrivateSymbolCount++));
-    Symbol_ = Symbols.insertSymbol(
-        Name, Section_, Offset_, 0 /*size*/, pstore::repo::linkage::internal,
-        pstore::repo::visibility_type::default_visibility);
+    Symbol_ = Symbols.insertSymbol(Name, Section_, Offset_, 0 /*size*/,
+                                   pstore::repo::linkage::internal,
+                                   pstore::repo::visibility::default_vis);
 
     LLVM_DEBUG(dbgs() << "  created symbol:" << Name
                       << " for internal fixup (offset:" << Offset_

@@ -35,7 +35,7 @@ public:
     /// \param Linkage_  The symbol's linkage.
     SymbolTarget(OutputSection<ELFT> const *Section_, std::uint64_t Offset_,
                  std::uint64_t Size_, pstore::repo::linkage Linkage_,
-                 pstore::repo::visibility_type Visibility_)
+                 pstore::repo::visibility Visibility_)
         : Section{Section_}, Offset{Offset_}, Size{Size_}, Linkage{Linkage_},
           Visibility{Visibility_} {
       assert(Linkage_ == pstore::repo::linkage::common || Section != nullptr);
@@ -45,7 +45,7 @@ public:
     std::uint64_t Offset;
     std::uint64_t Size;
     pstore::repo::linkage Linkage;
-    pstore::repo::visibility_type Visibility;
+    pstore::repo::visibility Visibility;
   };
 
   struct Value {
@@ -89,7 +89,7 @@ public:
   Value *insertSymbol(pstore::indirect_string const &Name,
                       OutputSection<ELFT> const *Section, std::uint64_t Offset,
                       std::uint64_t Size, pstore::repo::linkage Linkage,
-                      pstore::repo::visibility_type Visibility);
+                      pstore::repo::visibility Visibility);
 
   /// If not already in the symbol table, an undef entry is created. This may be
   /// later turned into a proper definition by a subsequent call to insertSymbol
@@ -120,7 +120,7 @@ public:
 
 private:
   static unsigned linkageToELFBinding(pstore::repo::linkage L);
-  static unsigned char visibilityToELFOther(pstore::repo::visibility_type SV);
+  static unsigned char visibilityToELFOther(pstore::repo::visibility SV);
   static unsigned sectionToSymbolType(ELFSectionType T);
   static bool isTLSRelocation(pstore::repo::relocation_type Type);
 
@@ -151,13 +151,13 @@ unsigned SymbolTable<ELFT>::linkageToELFBinding(pstore::repo::linkage L) {
 
 template <typename ELFT>
 unsigned char
-SymbolTable<ELFT>::visibilityToELFOther(pstore::repo::visibility_type SV) {
+SymbolTable<ELFT>::visibilityToELFOther(pstore::repo::visibility SV) {
   switch (SV) {
-  case pstore::repo::visibility_type::default_visibility:
+  case pstore::repo::visibility::default_vis:
     return llvm::ELF::STV_DEFAULT;
-  case pstore::repo::visibility_type::hidden_visibility:
+  case pstore::repo::visibility::hidden_vis:
     return llvm::ELF::STV_HIDDEN;
-  case pstore::repo::visibility_type::protected_visibility:
+  case pstore::repo::visibility::protected_vis:
     return llvm::ELF::STV_PROTECTED;
   }
   llvm_unreachable("Unsupported visibility type");
@@ -227,7 +227,7 @@ auto SymbolTable<ELFT>::insertSymbol(pstore::indirect_string const &Name,
                                      OutputSection<ELFT> const *Section,
                                      std::uint64_t Offset, std::uint64_t Size,
                                      pstore::repo::linkage Linkage,
-                                     pstore::repo::visibility_type Visibility)
+                                     pstore::repo::visibility Visibility)
     -> Value * {
   auto SV = this->insertSymbol(
       Name, SymbolTarget(Section, Offset, Size, Linkage, Visibility));
