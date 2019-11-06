@@ -380,13 +380,12 @@ void OutputSection<ELFT>::append(pstore::repo::compilation_member const &CM,
 
   for (pstore::repo::internal_fixup const &IFixup :
        pstore::repo::section_ifixups(*Fragment, SectionKind)) {
-    // "patch section" and "patch offset" define the address that the fixup will
+    // "this" and "patch offset" together define the address that the fixup will
     // modify.
-    OutputSection const *PatchSection = this;
     auto const PatchOffset = SectionSize_ + IFixup.offset;
     LLVM_DEBUG(llvm::dbgs()
-               << "patch section is " << std::get<0>(PatchSection->sectionId())
-               << " + " << PatchOffset << '\n');
+               << "patch section is " << std::get<0>(this->sectionId()) << " + "
+               << PatchOffset << '\n');
 
     // "target section" and friends define the value that the fixup will write
     // to the "patch address".
