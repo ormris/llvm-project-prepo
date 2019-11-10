@@ -6,7 +6,7 @@
 #
 #===-----------------------------------------------------------------------===//
 
-# Stage 1. Check out LLVM and PStore source code and run the build.
+# Stage 1. Check out LLVM and pstore source code and run the build.
 FROM ubuntu:18.04 as builder
 #LABEL maintainer "LLVM Developers"
 
@@ -58,10 +58,16 @@ ENTRYPOINT /bin/bash
 # Copy build results of stage 1 to /usr/local.
 #COPY --from=builder ${install_dir}/ ${user_dir}/
 # The COPY command does not support variables.
-COPY --from=builder /tmp/install/ /usr/local/
+COPY --from=builder /tmp/install/ /usr/
 
+# Add links from cc/c++ to clang/clang++
+RUN update-alternatives --install /usr/bin/cc cc /usr/bin/clang 30
+RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 30
+
+# Install a collection of packages that will allow us to build things.
 RUN apt-get update
-RUN apt-get install -y --no-install-recommends openssl sudo
+RUN apt-get install -y --no-install-recommends apt-utils openssl sudo
+RUN apt-get install -y binutils libstdc++-8-dev
 RUN rm -rf /var/lib/apt/lists/*
 
 # Create the "prepo" user (password "prepo") with sudo privileges.

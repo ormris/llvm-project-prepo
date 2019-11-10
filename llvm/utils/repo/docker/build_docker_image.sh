@@ -35,6 +35,7 @@ For example, running:
   build_docker_image.sh
     --branch master --docker-tag latest
     --install-target install-clang --install-target install-pstore
+    --install-target install-repo2obj
     -- -DCMAKE_BUILD_TYPE=Release
 
 will produce a docker image:
