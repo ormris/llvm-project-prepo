@@ -3,7 +3,8 @@
 ;
 ; RUN: rm -f %t.db
 ; RUN: env REPOFILE=%t.db opt -S %s -o %t
-; RUN: env REPOFILE=%t.db opt -S %t | FileCheck %s
+; RUN: env REPOFILE=%t.db llc -filetype=obj %t -o %t1
+; RUN: env REPOFILE=%t.db opt -S %s | FileCheck %s
 
 target triple = "x86_64-pc-linux-gnu-repo"
 

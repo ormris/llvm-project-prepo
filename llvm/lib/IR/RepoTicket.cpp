@@ -50,7 +50,7 @@ const TicketNode *getTicket(const GlobalObject *GO) {
       return MD;
     }
   }
-  report_fatal_error("Failed to get TicketNode metadata!");
+  return nullptr;
 }
 
 auto get(const GlobalObject *GO) -> std::pair<ticketmd::DigestType, bool> {
@@ -135,8 +135,13 @@ static bool updateDigestUseDependenciesAndContributions(
     return true;
   }
 
-  bool Changed = false;
   GOHash.update('T');
+  if (const TicketNode *const MD = getTicket(GO)) {
+    GOHash.update(MD->getDigest().Bytes);
+    return true;
+  }
+
+  bool Changed = false;
   auto State = AccumulateGODigest(GO, GOHash, GOIMap);
   Changed = Changed || State.Changed;
   // Update the GO's hash using its contributions and dependencies.
@@ -197,6 +202,8 @@ std::tuple<bool, unsigned, unsigned> generateTicketMDs(Module &M) {
   // Update the GO's digest using the dependencies and the contributions.
   for (auto &GO : M.global_objects()) {
     if (GO.isDeclaration())
+      continue;
+    if (getTicket(&GO))
       continue;
     Visited.clear();
     MD5 Hash = MD5();
