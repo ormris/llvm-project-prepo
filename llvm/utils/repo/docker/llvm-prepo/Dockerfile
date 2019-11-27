@@ -10,7 +10,8 @@
 FROM ubuntu:18.04 as builder
 #LABEL maintainer "LLVM Developers"
 
-# Install build dependencies of llvm.
+# Install LLVM's build dependencies.
+
 # First, Update the apt's source list and include the sources of the packages.
 RUN grep deb /etc/apt/sources.list | \
     sed 's/^deb/deb-src /g' >> /etc/apt/sources.list
@@ -19,12 +20,13 @@ RUN grep deb /etc/apt/sources.list | \
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends \
     apt-utils build-essential ca-certificates cmake git ninja-build python
+
 RUN rm -rf /var/lib/apt/lists/*
 
 # Miscellaneous directories.
 ARG install_dir="/tmp/install"
 ARG scripts_dir="/tmp/scripts"
-ARG user_dir="/usr/local"
+ARG user_dir="/usr"
 ARG workspace_dir="/tmp/workspace"
 
 # Add scripts to create the image.
@@ -50,6 +52,9 @@ RUN ${scripts_dir}/build_install_llvm_prepo.sh \
     --install-dir ${install_dir} \
     ${build_args}
 
+RUN apt-get install -y openssl
+RUN openssl passwd -1 prepo > "${workspace_dir}/prepo_pwd.txt"
+
 # Stage 2. Produce a minimal release image with build results.
 FROM ubuntu:18.04 as llvm-prepo-stage
 #LABEL maintainer "LLVM Developers"
@@ -59,6 +64,11 @@ ENTRYPOINT /bin/bash
 #COPY --from=builder ${install_dir}/ ${user_dir}/
 # The COPY command does not support variables.
 COPY --from=builder /tmp/install/ /usr/
+COPY --from=builder /tmp/install/bin /usr/bin/
+COPY --from=builder /tmp/install/lib /usr/lib/
+# COPY --from=builder /tmp/install/include /usr/include/
+COPY --from=builder /tmp/install/etc/init.d/pstore-brokerd /etc/init.d/
+
 
 # Add links from cc/c++ to clang/clang++
 RUN update-alternatives --install /usr/bin/cc cc /usr/bin/clang 30
@@ -66,15 +76,19 @@ RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 30
 
 # Install a collection of packages that will allow us to build things.
 RUN apt-get update
-RUN apt-get install -y --no-install-recommends apt-utils openssl sudo
+RUN apt-get install -y --no-install-recommends  sudo
 RUN apt-get install -y binutils libstdc++-8-dev
 RUN rm -rf /var/lib/apt/lists/*
 
+
+
 # Create the "prepo" user (password "prepo") with sudo privileges.
+COPY --from=builder /tmp/workspace/prepo_pwd.txt /tmp/prepo_pwd.txt
 RUN useradd --system --create-home --shell /bin/bash \
-            --gid root --groups sudo --uid 1000 \
-            --password $(openssl passwd -1 prepo) \
+            --gid root --groups sudo,staff --uid 1000 \
+            --password $(cat "/tmp/prepo_pwd.txt") \
             prepo
+RUN rm /tmp/prepo_pwd.txt
 USER prepo
 WORKDIR /home/prepo
 
@@ -82,3 +96,4 @@ WORKDIR /home/prepo
 RUN rm -rf ${install_dir}
 RUN rm -rf ${scripts_dir}
 RUN rm -rf ${workspace_dir}
+
