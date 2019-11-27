@@ -364,9 +364,10 @@ void OutputSection<ELFT>::append(pstore::repo::compilation_member const &CM,
   // symbols are mapped to the .init_array/.fini_array sections and we don't
   // actually need a symbol which references the data.
 
-  if (CM.linkage != pstore::repo::linkage::append) {
+  if (CM.linkage() != pstore::repo::linkage::append) {
     Symbols.insertSymbol(pstore::indirect_string::read(Db_, CM.name), this,
-                         SectionSize_, ObjectSize, CM.linkage, CM.visibility);
+                         SectionSize_, ObjectSize, CM.linkage(),
+                         CM.visibility());
   }
 
   for (pstore::repo::external_fixup const &XFixup :

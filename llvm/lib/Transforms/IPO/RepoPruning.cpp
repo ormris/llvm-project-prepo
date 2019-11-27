@@ -145,7 +145,7 @@ static void addDependentFragments(
       LLVM_DEBUG(dbgs() << "    Prunning dependent name: " << MDName << '\n');
       auto DMD = TicketNode::get(
           M.getContext(), MDName, toDigestType(CM->digest),
-          toGVLinkage(CM->linkage), toGVVisibility(CM->visibility), true);
+          toGVLinkage(CM->linkage()), toGVVisibility(CM->visibility()), true);
       // If functions 'A' and 'B' are dependent on function 'C', only add a
       // single TicketNode of 'C' to the 'repo.tickets' in order to avoid
       // multiple compilation_members of function 'C' in the compilation.

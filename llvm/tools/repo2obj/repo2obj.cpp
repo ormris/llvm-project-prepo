@@ -394,9 +394,9 @@ int main(int argc, char *argv[]) {
       std::fill(std::begin(OutputSections), std::end(OutputSections),
                 OutputSection<ELFT>::SectionInfo{});
 
-      auto const IsLinkOnce =
-          CM.linkage == pstore::repo::linkage::link_once_any ||
-          CM.linkage == pstore::repo::linkage::link_once_odr;
+      pstore::repo::linkage const Linkage = CM.linkage();
+      auto const IsLinkOnce = Linkage == pstore::repo::linkage::link_once_any ||
+                              Linkage == pstore::repo::linkage::link_once_odr;
 
       auto const Fragment = pstore::repo::fragment::load(Db, CM.fext);
 
@@ -427,7 +427,7 @@ int main(int argc, char *argv[]) {
         HeaderLength += Size;
       }
 
-      if (CM.linkage == pstore::repo::linkage::common) {
+      if (Linkage == pstore::repo::linkage::common) {
         auto const Name = pstore::indirect_string::read(Db, CM.name);
         assert(Name.is_in_store());
 
@@ -443,8 +443,8 @@ int main(int argc, char *argv[]) {
         pstore::repo::bss_section const &S =
             Fragment->at<pstore::repo::section_kind::bss>();
         State.Symbols.insertSymbol(Name, nullptr /*no output section*/,
-                                   0 /*offset*/, S.size(), CM.linkage,
-                                   CM.visibility);
+                                   0 /*offset*/, S.size(), Linkage,
+                                   CM.visibility());
         continue;
       }
       // Go through the sections that this fragment contains creating the
