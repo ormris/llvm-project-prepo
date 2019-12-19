@@ -181,6 +181,7 @@ PassManagerBuilder::PassManagerBuilder() {
     PrepareForThinLTO = EnablePrepareForThinLTO;
     PerformThinLTO = false;
     DivergentTarget = false;
+    IsRepo = false;
 }
 
 PassManagerBuilder::~PassManagerBuilder() {
@@ -425,8 +426,10 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
 
 void PassManagerBuilder::populateModulePassManager(
     legacy::PassManagerBase &MPM) {
-  MPM.add(createRepoMetadataGenerationPass());
-  MPM.add(createRepoPruningPass());
+  if (IsRepo) {
+    MPM.add(createRepoMetadataGenerationPass());
+    MPM.add(createRepoPruningPass());
+  }
 
   if (!PGOSampleUse.empty()) {
     MPM.add(createPruneEHPass());

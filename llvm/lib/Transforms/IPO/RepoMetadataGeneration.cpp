@@ -49,11 +49,6 @@ public:
   }
 
   bool runOnModule(Module &M) override;
-
-private:
-  bool isObjFormatRepo(Module &M) const {
-    return Triple(M.getTargetTriple()).isOSBinFormatRepo();
-  }
 };
 
 } // end anonymous namespace
@@ -67,7 +62,10 @@ ModulePass *llvm::createRepoMetadataGenerationPass() {
 }
 
 bool RepoMetadataGeneration::runOnModule(Module &M) {
-  if (skipModule(M) || !isObjFormatRepo(M))
+  assert(Triple(M.getTargetTriple()).isOSBinFormatRepo() &&
+         "This pass should be only ran on the Repo target");
+
+  if (skipModule(M))
     return false;
 
   auto Result = ticketmd::generateTicketMDs(M);

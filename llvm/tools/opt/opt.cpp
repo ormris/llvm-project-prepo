@@ -369,6 +369,9 @@ static void AddOptimizationPasses(legacy::PassManagerBase &MPM,
   if (Coroutines)
     addCoroutinePassesToExtensionPoints(Builder);
 
+  if (TM && TM->getTargetTriple().isOSBinFormatRepo())
+    Builder.IsRepo = true;
+
   Builder.populateFunctionPassManager(FPM);
   Builder.populateModulePassManager(MPM);
 }

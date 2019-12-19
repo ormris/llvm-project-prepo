@@ -559,6 +559,8 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
   PMBuilder.PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
   PMBuilder.PrepareForLTO = CodeGenOpts.PrepareForLTO;
   PMBuilder.RerollLoops = CodeGenOpts.RerollLoops;
+  if (TargetTriple.isOSBinFormatRepo())
+    PMBuilder.IsRepo = true;
 
   MPM.add(new TargetLibraryInfoWrapperPass(*TLII));
 

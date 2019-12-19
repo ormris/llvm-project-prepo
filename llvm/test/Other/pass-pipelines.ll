@@ -16,9 +16,6 @@
 ;
 ; CHECK-O2: Pass Arguments:
 ; CHECK-O2: ModulePass Manager
-; Calculate program repository ticket in the begining of the ModulePass.
-; CHECK-O2-NEXT: RepoMetadataGenerationPass
-; CHECK-O2-NEXT: RepoPruningPass
 ; CHECK-O2-NOT: Manager
 ; First function pass pipeline just does early opts.
 ; CHECK-O2: FunctionPass Manager
