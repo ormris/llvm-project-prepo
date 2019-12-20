@@ -6,6 +6,7 @@
 ; CHECK-NEXT:   ModulePass Manager
 ; CHECK-NEXT:     RepoMetadataGenerationPass
 ; CHECK-NEXT:     RepoPruningPass
+; CHECK-NEXT:     Dead Global Elimination
 ; CHECK-NEXT:     Force set function attributes
 
 define void @f() {

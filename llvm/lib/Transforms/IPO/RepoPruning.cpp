@@ -158,21 +158,45 @@ static void addDependentFragments(
   }
 }
 
-bool RepoPruning::runOnModule(Module &M) {
-  assert(Triple(M.getTargetTriple()).isOSBinFormatRepo() &&
-         "This pass should be only ran on the Repo target");
+// Remove the function body and make it external.
+static void deleteFunction(Function *Fn) {
+  // This will set the linkage to external
+  Fn->deleteBody();
+  Fn->removeDeadConstantUsers();
+  NumFunctions++;
+}
 
-  if (skipModule(M))
-    return false;
+// Removed the global variables and its initializers.
+static void deleteGlobalVariable(GlobalVariable *GV) {
+  if (GV->hasInitializer()) {
+    Constant *Init = GV->getInitializer();
+    GV->setInitializer(nullptr);
+    if (isSafeToDestroyConstant(Init))
+      Init->destroyConstant();
+  }
+  GV->removeDeadConstantUsers();
+  GV->setLinkage(GlobalValue::ExternalLinkage);
+  NumVariables++;
+}
 
+// Removed the global object.
+static void deleteGlobalObject(GlobalObject *GO) {
+  if (auto *GV = dyn_cast<GlobalVariable>(GO)) {
+    deleteGlobalVariable(GV);
+  } else if (auto *Fn = dyn_cast<Function>(GO)) {
+    deleteFunction(Fn);
+  } else {
+    llvm_unreachable("Unknown global object type!");
+  }
+}
+
+static bool doPruning(Module &M) {
   MDBuilder MDB(M.getContext());
-
   const pstore::database &Repository = getRepoDatabase();
 
   std::shared_ptr<const pstore::index::fragment_index> const Fragments =
       pstore::index::get_index<pstore::trailer::indices::fragment>(Repository,
                                                                    false);
-
   if (!Fragments && !M.getNamedMetadata("repo.tickets")) {
     return false;
   }
@@ -183,7 +207,7 @@ bool RepoPruning::runOnModule(Module &M) {
   // Erase the unchanged global objects.
   auto EraseUnchangedGlobalObject =
       [&ModuleFragments, &Fragments, &Repository, &M,
-       &DependentFragments](GlobalObject &GO, llvm::Statistic &NumGO) -> bool {
+       &DependentFragments](GlobalObject &GO) -> bool {
     if (GO.isDeclaration() || GO.hasAvailableExternallyLinkage() ||
         !isSafeToPrune(GO))
       return false;
@@ -224,23 +248,14 @@ bool RepoPruning::runOnModule(Module &M) {
       }
     }
 
-    ++NumGO;
     GO.setComdat(nullptr);
     GO.setDSOLocal(false);
     TicketNode *MD =
         dyn_cast<TicketNode>(GO.getMetadata(LLVMContext::MD_repo_ticket));
     MD->setPruned(true);
 
-    if (isSafeToPruneIntrinsicGV(GO)) {
-      // Change Intrinsic GV from definition to declaration.
-      GO.clearMetadata();
-      GO.setMetadata(LLVMContext::MD_repo_ticket, MD);
-      GO.setLinkage(GlobalValue::ExternalLinkage);
-      GlobalVariable *const GV = dyn_cast<GlobalVariable>(&GO);
-      Constant *const Init = GV->getInitializer();
-      if (isSafeToDestroyConstant(Init))
-        Init->destroyConstant();
-      GV->setInitializer(nullptr);
+    if (isSafeToPruneIntrinsicGV(GO) || GO.use_empty()) {
+      deleteGlobalObject(&GO);
       return true;
     }
 
@@ -249,21 +264,59 @@ bool RepoPruning::runOnModule(Module &M) {
   };
 
   bool Changed = false;
-  for (GlobalVariable &GV : M.globals()) {
-    if (EraseUnchangedGlobalObject(GV, NumVariables)) {
+  for (auto &GO : M.global_objects()) {
+    if (EraseUnchangedGlobalObject(GO)) {
       Changed = true;
     }
   }
-
-  for (Function &Func : M) {
-    if (EraseUnchangedGlobalObject(Func, NumFunctions)) {
-      Changed = true;
-    }
-  }
-
-  LLVM_DEBUG(dbgs() << "size of module: " << M.size() << '\n');
-  LLVM_DEBUG(dbgs() << "size of removed functions: " << NumFunctions << '\n');
-  LLVM_DEBUG(dbgs() << "size of removed variables: " << NumVariables << '\n');
 
   return Changed;
+}
+
+static bool wasPruned(const GlobalObject &GO) {
+  if (const MDNode *const MD = GO.getMetadata(LLVMContext::MD_repo_ticket)) {
+    if (const TicketNode *const TN = dyn_cast<TicketNode>(MD)) {
+      return TN->getPruned();
+    }
+  }
+  return false;
+}
+
+static bool eliminateUnreferencedAndPrunedGOs(Module &M) {
+  bool Changed = false;
+  // If a global object is pruned (already in the database) and are not
+  // referenced by other live global objects, it can be deleted.
+  for (auto &GO : M.global_objects()) {
+    if (GO.isDeclaration() || !GO.use_empty() || !wasPruned(GO))
+      continue;
+    deleteGlobalObject(&GO);
+    Changed = true;
+  }
+  return Changed;
+}
+
+bool RepoPruning::runOnModule(Module &M) {
+  assert(Triple(M.getTargetTriple()).isOSBinFormatRepo() &&
+         "This pass should be only run on the Repo target");
+
+  if (skipModule(M))
+    return false;
+
+  bool IsPruned = doPruning(M);
+
+  // If a global object is pruned (already in the database) and has no live
+  // callers, it can be deleted rather than being marked available_extern
+  // since nothing will attempt to use it for code generation.
+  if (IsPruned) {
+    bool IsEliminated = false;
+    do {
+      IsEliminated = eliminateUnreferencedAndPrunedGOs(M);
+    } while (IsEliminated);
+  }
+
+  LLVM_DEBUG(dbgs() << "Size of module: " << M.size() << '\n');
+  LLVM_DEBUG(dbgs() << "Number of removed functions: " << NumFunctions << '\n');
+  LLVM_DEBUG(dbgs() << "Number of removed variables: " << NumVariables << '\n');
+
+  return IsPruned;
 }

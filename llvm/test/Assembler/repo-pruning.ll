@@ -15,24 +15,26 @@
 
 target triple = "x86_64-pc-linux-gnu-elf"
 
-;CHECK: @c = available_externally global i32 8, align 4
+;CHECK-NOT: @c =
 $c = comdat any
 @c = global i32 8, align 4, comdat($c)
-;CHECK: @a = available_externally global i32 1, align 4
+;CHECK-NOT: @a =
 $a = comdat exactmatch
 @a = global i32 1, align 4, comdat($a)
-;CHECK: @b = available_externally global i32 1, align 4
+;CHECK-NOT: @b =
 $b = comdat largest
 @b = internal global i32 1, comdat, align 4, comdat($b)
 
-;CHECK: define available_externally i8* @me()
+;CHECK-NOT: define available_externally i8* @me()
+;CHECK-NOT: declare i8* @me()
 $me = comdat noduplicates
 define linkonce_odr i8* @me() comdat($me) {
 entry:
   ret i8* bitcast (i8* ()* @me to i8*)
 }
 
-;CHECK: define available_externally i32 @foo()
+;CHECK-NOT: define available_externally i32 @foo()
+;CHECK-NOT: declare i32 @foo()
 define internal i32 @foo() {
 entry:
   %0 = load i32, i32* @a, align 4
@@ -44,16 +46,17 @@ entry:
   ret i32 %1
 }
 
-;CHECK: define available_externally i32 @bar()
+;CHECK-NOT: define available_externally i32 @bar()
+;CHECK-NOT: declare i32 @bar()
 define i32 @bar() {
 entry:
   %call = call i32 @foo()
   ret i32 %call
 }
 
+;CHECK: !TicketNode(name: "me", digest: [16 x i8] c"{{.*}}", linkage: linkonce_odr, visibility: default, pruned: false)
+;CHECK: !TicketNode(name: "foo", digest: [16 x i8] c"{{.*}}", linkage: internal, visibility: default, pruned: true)
+;CHECK: !TicketNode(name: "bar", digest: [16 x i8] c"{{.*}}", linkage: external, visibility: default, pruned: true)
 ;CHECK: !TicketNode(name: "c", digest: [16 x i8] c"{{.*}}", linkage: external, visibility: default, pruned: true)
 ;CHECK: !TicketNode(name: "a", digest: [16 x i8] c"{{.*}}", linkage: external, visibility: default, pruned: true)
 ;CHECK: !TicketNode(name: "b", digest: [16 x i8] c"{{.*}}", linkage: internal, visibility: default, pruned: true)
-;CHECK: !TicketNode(name: "me", digest: [16 x i8] c"{{.*}}", linkage: linkonce_odr, visibility: default, pruned: true)
-;CHECK: !TicketNode(name: "foo", digest: [16 x i8] c"{{.*}}", linkage: internal, visibility: default, pruned: true)
-;CHECK: !TicketNode(name: "bar", digest: [16 x i8] c"{{.*}}", linkage: external, visibility: default, pruned: true)

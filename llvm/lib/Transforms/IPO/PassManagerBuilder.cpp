@@ -429,6 +429,7 @@ void PassManagerBuilder::populateModulePassManager(
   if (IsRepo) {
     MPM.add(createRepoMetadataGenerationPass());
     MPM.add(createRepoPruningPass());
+    MPM.add(createGlobalDCEPass());
   }
 
   if (!PGOSampleUse.empty()) {

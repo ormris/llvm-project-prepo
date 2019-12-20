@@ -63,7 +63,7 @@ ModulePass *llvm::createRepoMetadataGenerationPass() {
 
 bool RepoMetadataGeneration::runOnModule(Module &M) {
   assert(Triple(M.getTargetTriple()).isOSBinFormatRepo() &&
-         "This pass should be only ran on the Repo target");
+         "This pass should be only run on the Repo target");
 
   if (skipModule(M))
     return false;
