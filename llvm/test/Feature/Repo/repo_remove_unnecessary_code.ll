@@ -10,10 +10,10 @@
 ; RUN: rm -f %t.db
 ; RUN: env REPOFILE=%t.db opt -O3 -S -mtriple=x86_64-pc-linux-gnu-repo %s -o %t.ll
 ; RUN: env REPOFILE=%t.db llc -mtriple="x86_64-pc-linux-gnu-repo" -filetype=obj %t.ll -o %t.o
-; RUN: env REPOFILE=%t.db pstore-dump  -all-compilations %t.db > %t.log
+; RUN: env REPOFILE=%t.db pstore-dump  --all-compilations %t.db > %t.log
 ; RUN: env REPOFILE=%t.db opt -O3 -S -mtriple=x86_64-pc-linux-gnu-repo %s -o %t1.ll
 ; RUN: env REPOFILE=%t.db llc -mtriple="x86_64-pc-linux-gnu-repo" -filetype=obj %t1.ll -o %t1.o
-; RUN: env REPOFILE=%t.db pstore-dump  -all-compilations %t.db > %t1.log
+; RUN: env REPOFILE=%t.db pstore-dump  --all-compilations %t.db > %t1.log
 ; RUN: diff %t.log %t1.log
 
 target triple = "x86_64-pc-linux-gnu-elf"

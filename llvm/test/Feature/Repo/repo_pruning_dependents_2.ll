@@ -2,9 +2,9 @@
 ;
 ; RUN: rm -f %t.db
 ; RUN: env REPOFILE=%t.db llc -filetype=obj %S/Inputs/repo_pruning_dependent.ll -o %t
-; RUN: env REPOFILE=%t.db pstore-dump  -all-compilations %t.db > %t.log
+; RUN: env REPOFILE=%t.db pstore-dump  --all-compilations %t.db > %t.log
 ; RUN: env REPOFILE=%t.db llc -filetype=obj %s -o %t1
-; RUN: env REPOFILE=%t.db pstore-dump  -all-compilations %t.db > %t1.log
+; RUN: env REPOFILE=%t.db pstore-dump  --all-compilations %t.db > %t1.log
 ; RUN: diff %t.log %t1.log
 
 target triple = "x86_64-pc-linux-gnu-repo"

@@ -15,9 +15,9 @@
 
 ; RUN: rm -f %t.db
 ; RUN: env REPOFILE=%t.db llc -mtriple="x86_64-pc-linux-gnu-repo" -filetype=obj %s -o %t
-; RUN: env REPOFILE=%t.db pstore-dump  -all-compilations %t.db > %t.log
+; RUN: env REPOFILE=%t.db pstore-dump  --all-compilations %t.db > %t.log
 ; RUN: env REPOFILE=%t.db clang -O3 -c --target=x86_64-pc-linux-gnu-repo -x ir %s  -o %t1
-; RUN: env REPOFILE=%t.db pstore-dump  -all-compilations %t.db > %t1.log
+; RUN: env REPOFILE=%t.db pstore-dump  --all-compilations %t.db > %t1.log
 ; RUN: diff %t.log %t1.log
 
 ; REQUIRES: asserts

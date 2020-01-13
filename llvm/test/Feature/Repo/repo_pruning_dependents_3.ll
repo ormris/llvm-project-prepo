@@ -7,7 +7,7 @@
 ; RUN: rm -f %t.db
 ; RUN: env REPOFILE=%t.db llc -filetype=obj %S/Inputs/repo_pruning_dependent_with_private_linkage.ll -o %t
 ; RUN: env REPOFILE=%t.db llc -filetype=obj %s -o %t1
-; RUN: env REPOFILE=%t.db pstore-dump -all-compilations %t.db | FileCheck %s
+; RUN: env REPOFILE=%t.db pstore-dump --all-compilations %t.db | FileCheck %s
 
 target triple = "x86_64-pc-linux-gnu-repo"
 
